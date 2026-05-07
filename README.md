@@ -4,6 +4,9 @@
 
 **关键词 / Keywords:** macOS, local-first, desktop recorder, meeting notes, FunASR workflow, paraformer-zh, speaker diarization, Tauri, React, Rust, OpenAI-compatible Chat Completions API.
 
+**成品下载 / Download:** [H-VibeRec_0.2.0_aarch64.dmg](https://github.com/licycle/H-VibeRec/releases/download/0.2.0/H-VibeRec_0.2.0_aarch64.dmg)<br>
+**Release 页面 / Release page:** [H-VibeRec v0.2.0](https://github.com/licycle/H-VibeRec/releases/tag/0.2.0)
+
 ## 中文
 
 H-VibeRec 是一款面向 macOS 的本地优先桌面应用，用于会议录音、音频导入、本地 FunASR 转写、说话人区分、LLM 会议纪要和本地笔记问答。它适合不想搭建开发环境、希望下载应用后直接开始录音、转写和总结的用户。
@@ -12,7 +15,7 @@ H-VibeRec 是一款面向 macOS 的本地优先桌面应用，用于会议录音
 
 ### 快速开始
 
-1. 打开项目的 GitHub Releases 页面，下载最新的 `.dmg` 安装包。
+1. 下载成品安装包：[H-VibeRec_0.2.0_aarch64.dmg](https://github.com/licycle/H-VibeRec/releases/download/0.2.0/H-VibeRec_0.2.0_aarch64.dmg)。
 2. 双击打开 `.dmg`，把 `H-VibeRec.app` 拖到 `Applications` 文件夹。
 3. 从 `Applications` 启动 H-VibeRec。若 macOS 阻止首次打开，请右键点击应用选择 `Open`，或到 `System Settings > Privacy & Security` 允许打开。
 4. 打开应用设置，进入 `检测`，依次点击 `验证录音权限`、`检测运行环境`、`下载/检查 FunASR workflow 模型`。
@@ -66,7 +69,7 @@ H-VibeRec is a local-first macOS desktop app for meeting recording, audio import
 
 ### Quick Start
 
-1. Open the project's GitHub Releases page and download the latest `.dmg` installer.
+1. Download the ready-to-use installer: [H-VibeRec_0.2.0_aarch64.dmg](https://github.com/licycle/H-VibeRec/releases/download/0.2.0/H-VibeRec_0.2.0_aarch64.dmg).
 2. Open the `.dmg` file and drag `H-VibeRec.app` into `Applications`.
 3. Launch H-VibeRec from `Applications`. If macOS blocks the first launch, right-click the app and choose `Open`, or allow it in `System Settings > Privacy & Security`.
 4. Open app settings, go to `Diagnostics (检测)`, then click `验证录音权限`, `检测运行环境`, and `下载/检查 FunASR workflow 模型`.
