@@ -7,6 +7,20 @@
 **成品下载 / Download:** [H-VibeRec_0.2.0_aarch64.dmg](https://github.com/licycle/H-VibeRec/releases/download/0.2.0/H-VibeRec_0.2.0_aarch64.dmg)<br>
 **Release 页面 / Release page:** [H-VibeRec v0.2.0](https://github.com/licycle/H-VibeRec/releases/tag/0.2.0)
 
+## 界面预览 / Screenshots
+
+![H-VibeRec 本地工作区、转写笔记和 AI 问答](assets/marketing/screenshots/h-viberec-scene-01.png)
+
+<p>
+  <img src="assets/marketing/screenshots/h-viberec-scene-02.png" alt="H-VibeRec 基础配置" width="49%">
+  <img src="assets/marketing/screenshots/h-viberec-scene-03.png" alt="H-VibeRec 模板管理" width="49%">
+</p>
+
+<p>
+  <img src="assets/marketing/screenshots/h-viberec-scene-04.png" alt="H-VibeRec 语音输入法配置" width="49%">
+  <img src="assets/marketing/screenshots/h-viberec-scene-05.png" alt="H-VibeRec 转写和总结任务进度" width="49%">
+</p>
+
 ## 中文
 
 H-VibeRec 是一款面向 macOS 的本地优先桌面应用，用于会议录音、音频导入、本地 FunASR 转写、说话人区分、LLM 会议纪要和本地笔记问答。它适合不想搭建开发环境、希望下载应用后直接开始录音、转写和总结的用户。
