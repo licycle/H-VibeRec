@@ -1,0 +1,110 @@
+/* Tailwind Compatibility Layer
+ * 为使用 Tailwind 类名的组件提供基本样式支持
+ */
+
+/* Layout Utilities */
+.fixed { position: fixed; }
+.inset-0 { top: 0; right: 0; bottom: 0; left: 0; }
+.flex { display: flex; }
+.items-center { align-items: center; }
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+.justify-end { justify-content: flex-end; }
+.flex-col { flex-direction: column; }
+.gap-1 { gap: 0.25rem; }
+.gap-2 { gap: 0.5rem; }
+.gap-3 { gap: 0.75rem; }
+.gap-4 { gap: 1rem; }
+
+/* Spacing */
+.p-4 { padding: 1rem; }
+.p-6 { padding: 1.5rem; }
+.px-4 { padding-left: 1rem; padding-right: 1rem; }
+.px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
+.py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+.py-3 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+.py-4 { padding-top: 1rem; padding-bottom: 1rem; }
+.pt-2 { padding-top: 0.5rem; }
+.mb-1 { margin-bottom: 0.25rem; }
+.mb-2 { margin-bottom: 0.5rem; }
+.mt-1 { margin-top: 0.25rem; }
+
+/* Sizing */
+.w-4 { width: 1rem; }
+.w-5 { width: 1.25rem; }
+.w-16 { width: 4rem; }
+.h-2 { height: 0.5rem; }
+.h-4 { height: 1rem; }
+.h-5 { width: 1.25rem; }
+.h-16 { height: 4rem; }
+.w-full { width: 100%; }
+.max-w-lg { max-width: 32rem; }
+.mx-4 { margin-left: 1rem; margin-right: 1rem; }
+.max-w-xs { max-width: 20rem; }
+
+/* Colors */
+.bg-black\/50 {
+  background-color: rgba(0, 0, 0, 0.5);
+}
+.bg-gray-800 { background-color: #1f2937; }
+.bg-gray-700 { background-color: #374151; }
+.bg-gray-700\/50 { background-color: rgba(55, 65, 81, 0.5); }
+.bg-blue-500 { background-color: #3b82f6; }
+.bg-green-500 { background-color: #10b981; }
+.bg-red-500\/10 { background-color: rgba(239, 68, 68, 0.1); }
+.text-white { color: white; }
+.text-gray-400 { color: #9ca3af; }
+.text-gray-300 { color: #d1d5db; }
+.text-blue-400 { color: #60a5fa; }
+.text-green-400 { color: #34d399; }
+.text-red-400 { color: #f87171; }
+.text-red-300 { color: #fca5a5; }
+.text-red-200 { color: #fecaca; }
+
+/* Typography */
+.text-sm { font-size: 0.875rem; }
+.text-xs { font-size: 0.75rem; }
+.text-lg { font-size: 1.125rem; }
+.font-semibold { font-weight: 600; }
+.font-medium { font-weight: 500; }
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Borders */
+.rounded { border-radius: 0.25rem; }
+.rounded-lg { border-radius: 0.5rem; }
+.rounded-full { border-radius: 9999px; }
+.border { border-width: 1px; }
+.border-gray-700 { border-color: #374151; }
+.border-t { border-top-width: 1px; }
+.border-red-500\/30 { border-color: rgba(239, 68, 68, 0.3); }
+
+/* Effects */
+.shadow-xl {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+.transition-all { transition-property: all; }
+.transition-colors { transition-property: color, background-color, border-color; }
+.duration-300 { transition-duration: 0.3s; }
+
+/* Z-Index */
+.z-50 { z-index: 50; }
+.z-1000 { z-index: 1000; }
+
+/* Spacing Arrays */
+.space-y-3 > * + * { margin-top: 0.75rem; }
+.space-y-4 > * + * { margin-top: 1rem; }
+.space-y-6 > * + * { margin-top: 1.5rem; }
+
+/* Animation */
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

@@ -1,0 +1,44 @@
+{
+  "categories": {
+    "时间分析": "按时间维度进行分析的模板",
+    "话题分析": "按话题或主题进行分析的模板",
+    "人员分析": "按发言人或参与者进行分析的模板",
+    "风险分析": "专注于风险识别和评估的模板",
+    "决策分析": "专注于决策过程和结果的模板",
+    "行动项分析": "提取和跟踪行动项的模板",
+    "综合分析": "多维度综合分析的模板",
+    "自定义": "用户完全自定义的模板"
+  },
+  "templates": [
+    {
+      "filename": "timeline_risk_analysis.txt",
+      "name": "会议风险时间线分析",
+      "description": "按时间维度分析风险演化过程",
+      "category": "风险分析"
+    },
+    {
+      "filename": "topic_classification.txt",
+      "name": "话题分类总结",
+      "description": "按话题分类整理内容",
+      "category": "话题分析"
+    },
+    {
+      "filename": "decision_process.txt",
+      "name": "决策过程梳理",
+      "description": "梳理和分析决策制定过程",
+      "category": "决策分析"
+    },
+    {
+      "filename": "action_items.txt",
+      "name": "行动项提取",
+      "description": "提取和整理行动项",
+      "category": "行动项分析"
+    },
+    {
+      "filename": "speaker_summary.txt",
+      "name": "发言人观点总结",
+      "description": "按发言人整理观点和立场",
+      "category": "人员分析"
+    }
+  ]
+}

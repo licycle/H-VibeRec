@@ -1,0 +1,8 @@
+recordings/
+exports/
+*.wav
+*.mp3
+*.m4a
+target/
+.git/
+node_modules/

@@ -1,0 +1,270 @@
+/* NovelEditor Container */
+.novel-editor-container {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--panel);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* Loading Overlay */
+.novel-editor-loading {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.8);
+  display: flex;
+  align-items: center;
+  justify-center;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.novel-editor-loading-content {
+  padding: 12px 24px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  font-size: 0.875rem;
+  color: #666;
+}
+
+/* Novel Editor Content */
+.novel-editor-content {
+  height: 100%;
+}
+
+.novel-editor-content .ProseMirror-focused {
+  outline: none;
+}
+
+/* 主题定制 - 使用项目的 CSS 变量 */
+.novel-editor-prose,
+.novel-editor-container .ProseMirror {
+  background-color: var(--panel);
+  color: var(--text);
+  padding: 1rem;
+  min-height: 100%;
+  outline: none;
+}
+
+.novel-editor-container .ProseMirror p.is-editor-empty:first-child::before {
+  color: var(--muted);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* 标题样式 */
+.novel-editor-container .ProseMirror h1 {
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.35;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  color: var(--text);
+}
+
+.novel-editor-container .ProseMirror h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.35;
+  margin-top: 1.25rem;
+  margin-bottom: 0.65rem;
+  color: var(--text);
+}
+
+.novel-editor-container .ProseMirror h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.35;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  color: var(--text);
+}
+
+.novel-editor-container .ProseMirror h4 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  line-height: 1.35;
+  margin-top: 0.85rem;
+  margin-bottom: 0.45rem;
+  color: var(--text);
+}
+
+.novel-editor-container .ProseMirror h5 {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.35;
+  margin-top: 0.75rem;
+  margin-bottom: 0.4rem;
+  color: var(--text);
+}
+
+.novel-editor-container .ProseMirror h6 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.35;
+  margin-top: 0.65rem;
+  margin-bottom: 0.35rem;
+  color: var(--text);
+}
+
+/* 段落和文本 */
+.novel-editor-container .ProseMirror p {
+  margin: 0.5rem 0;
+  line-height: 1.8;
+}
+
+/* 代码块 */
+.novel-editor-container .ProseMirror pre {
+  background-color: var(--panel-2);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin: 0.75rem 0;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+}
+
+.novel-editor-container .ProseMirror pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+/* 行内代码 */
+.novel-editor-container .ProseMirror code {
+  background-color: var(--panel-2);
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+  font-size: 0.9em;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  color: var(--text);
+}
+
+/* 引用块 */
+.novel-editor-container .ProseMirror blockquote {
+  border-left: 4px solid var(--primary);
+  padding-left: 1rem;
+  margin: 0.75rem 0;
+  background-color: var(--panel-2);
+  padding: 0.75rem 1rem;
+  border-radius: 0 8px 8px 0;
+}
+
+/* 列表 */
+.novel-editor-container .ProseMirror ul,
+.novel-editor-container .ProseMirror ol {
+  padding-left: 1.5rem;
+  margin: 0.75rem 0;
+}
+
+.novel-editor-container .ProseMirror ul li,
+.novel-editor-container .ProseMirror ol li {
+  margin: 0.25rem 0;
+  line-height: 1.8;
+}
+
+/* 任务列表 */
+.novel-editor-container .ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+
+.novel-editor-container .ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.novel-editor-container .ProseMirror ul[data-type="taskList"] li input[type="checkbox"] {
+  margin-top: 0.35rem;
+  cursor: pointer;
+}
+
+/* 链接 */
+.novel-editor-container .ProseMirror a {
+  color: #2563eb;
+  text-decoration: underline;
+  text-decoration-style: dashed;
+  text-decoration-color: rgba(37, 99, 235, 0.4);
+  cursor: pointer;
+}
+
+.novel-editor-container .ProseMirror a:hover {
+  text-decoration-color: rgba(37, 99, 235, 0.8);
+}
+
+/* 表格 */
+.novel-editor-container .ProseMirror table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.75rem 0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.novel-editor-container .ProseMirror table th,
+.novel-editor-container .ProseMirror table td {
+  border: 1px solid var(--border);
+  padding: 0.5rem;
+  text-align: left;
+}
+
+.novel-editor-container .ProseMirror table th {
+  background-color: var(--panel-2);
+  font-weight: 600;
+}
+
+.novel-editor-container .ProseMirror table tr:nth-child(odd) {
+  background-color: var(--panel);
+}
+
+.novel-editor-container .ProseMirror table tr:nth-child(even) {
+  background-color: var(--panel-2);
+}
+
+/* 分隔线 */
+.novel-editor-container .ProseMirror hr {
+  border: none;
+  border-top: 2px solid var(--border);
+  margin: 1.5rem 0;
+}
+
+/* 粗体、斜体、删除线 */
+.novel-editor-container .ProseMirror strong {
+  font-weight: 600;
+}
+
+.novel-editor-container .ProseMirror em {
+  font-style: italic;
+}
+
+.novel-editor-container .ProseMirror s {
+  text-decoration: line-through;
+}
+
+/* 光标和选择 */
+.novel-editor-container .ProseMirror .ProseMirror-selectednode {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Slash command menu (如果启用) */
+.novel-editor-container .slash-command-menu {
+  background-color: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* 禁用默认的 Novel 样式覆盖 */
+.novel-editor-container .novel-editor-instance > div {
+  border: none !important;
+  box-shadow: none !important;
+}

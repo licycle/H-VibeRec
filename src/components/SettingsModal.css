@@ -1,0 +1,228 @@
+/* Settings Modal Component Styles */
+
+.settings-modal-sheet {
+  height: min(85vh, 820px);
+}
+
+.settings-modal-sheet .modal-header {
+  flex-shrink: 0;
+}
+
+.settings-modal-sheet .modal-tabs {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.settings-modal-sheet .modal-body {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.settings-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  animation: overlayFadeIn 0.3s ease-out;
+}
+
+@keyframes overlayFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.settings-modal {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 400px;
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  box-shadow: -4px 0 25px -5px rgba(0, 0, 0, 0.1), -2px 0 10px -5px rgba(0, 0, 0, 0.04);
+  animation: sidebarSlideIn 0.3s ease-out;
+}
+
+@keyframes sidebarSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.settings-modal .settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-2);
+}
+
+.settings-modal .settings-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.settings-modal .settings-content {
+  flex: 1;
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+
+.setting-item {
+  margin-bottom: 1.5rem;
+}
+
+.setting-item:last-child {
+  margin-bottom: 0;
+}
+
+.setting-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  margin-bottom: 0.5rem;
+}
+
+.checkbox-text {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.input-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.setting-description {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.setting-note {
+  font-size: 0.75rem;
+  color: var(--success-dark);
+  margin: 0.5rem 0 0 0;
+  padding: 0.5rem;
+  background: var(--success-light);
+  border-radius: 4px;
+  border-left: 3px solid var(--success);
+}
+
+.settings-modal .settings-footer {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border);
+  background: var(--panel-2);
+}
+
+/* ========================================
+   Tab Navigation
+   ======================================== */
+
+.settings-tabs {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0 1.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.settings-tab-button {
+  padding: 0.75rem 1rem;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.settings-tab-button:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.settings-tab-button.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+/* ========================================
+   Dark Mode Overrides
+   ======================================== */
+
+body.theme-dark .settings-overlay {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+body.theme-dark .settings-modal {
+  background: var(--panel);
+  box-shadow: -4px 0 25px -5px rgba(0, 0, 0, 0.3), -2px 0 10px -5px rgba(0, 0, 0, 0.2);
+}
+
+body.theme-dark .settings-modal .settings-header {
+  background: var(--panel-2);
+  border-bottom-color: var(--border);
+}
+
+body.theme-dark .settings-modal .settings-footer {
+  background: var(--panel-2);
+  border-top-color: var(--border);
+}
+
+body.theme-dark .settings-tabs {
+  background: var(--panel);
+  border-bottom-color: var(--border);
+}
+
+body.theme-dark .settings-tab-button:hover {
+  background: var(--hover);
+}
+
+body.theme-dark .setting-note {
+  background: var(--success-light);
+  color: var(--success-dark);
+  border-left-color: var(--success);
+}
+
+@media (max-width: 640px) {
+  .modal-backdrop {
+    padding: 0;
+  }
+
+  .settings-modal-sheet {
+    width: 100vw;
+    max-width: none;
+    height: 100vh;
+    max-height: none;
+    border-radius: 0;
+  }
+}

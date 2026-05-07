@@ -1,0 +1,29 @@
+/* Meeting Sidebar Component Styles */
+
+.meeting-list {
+  flex: 1;
+  padding: 0.25rem;
+  overflow: auto;
+  min-height: 0;
+}
+
+.meeting-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.meeting-item:hover { background: var(--hover); }
+.meeting-item.active { background: var(--hover); border: none; }
+
+.meeting-title { flex: 1; font-size: 0.9rem; color: var(--text); }
+
+.meeting-edit {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}

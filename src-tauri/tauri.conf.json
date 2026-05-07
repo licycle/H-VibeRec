@@ -1,0 +1,126 @@
+{
+    "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+    "productName": "H-VibeRec",
+    "version": "0.2.0",
+    "identifier": "com.hit.vvc",
+    "build": {
+        "frontendDist": "../dist",
+        "devUrl": "http://localhost:1420",
+        "beforeDevCommand": "npm run runtime:ensure && npm run dev",
+        "beforeBuildCommand": "npm run runtime:ensure && npm run build"
+    },
+    "app": {
+        "windows": [{
+            "label": "main",
+            "title": "H-VibeRec",
+            "width": 1200,
+            "height": 800,
+            "resizable": true,
+            "fullscreen": false,
+            "theme": "Light",
+            "decorations": true,
+            "minWidth": 960,
+            "minHeight": 600
+        }, {
+            "label": "voice-input-overlay",
+            "title": "Voice Input",
+            "width": 256,
+            "height": 32,
+            "resizable": false,
+            "fullscreen": false,
+            "theme": "Light",
+            "decorations": false,
+            "transparent": true,
+            "backgroundColor": "#00000000",
+            "visible": false,
+            "alwaysOnTop": true,
+            "visibleOnAllWorkspaces": true,
+            "skipTaskbar": true,
+            "focus": false,
+            "minimizable": false,
+            "maximizable": false,
+            "closable": false,
+            "acceptFirstMouse": true
+        }],
+        "macOSPrivateApi": true,
+        "security": {
+            "csp": {
+                "default-src": "'self'",
+                "img-src": "'self' asset: https://asset.localhost data:",
+                "media-src": "'self' asset: https://asset.localhost",
+                "connect-src": "'self' http://localhost:* http://127.0.0.1:* https://localhost:* https://127.0.0.1:*"
+            },
+            "assetProtocol": {
+                "enable": true,
+                "scope": [
+                    "$APPDATA/**",
+                    "$DOCUMENT/**",
+                    "$AUDIO/**"
+                ]
+            },
+            "capabilities": [{
+                "identifier": "main",
+                "description": "Main window capability for local recording, ASR, and LLM summary",
+                "windows": ["main", "voice-input-overlay"],
+                "permissions": [
+                    "core:path:default",
+                    "core:event:default",
+                    "core:window:default",
+                    "core:app:default",
+                    "core:resources:default",
+                    "core:window:allow-start-dragging",
+                    "core:window:allow-set-title",
+                    "dialog:default",
+                    "dialog:allow-confirm",
+                    "dialog:allow-open",
+                    "dialog:allow-save",
+                    "dialog:allow-ask"
+                ]
+            }]
+        }
+    },
+    "bundle": {
+        "active": true,
+        "targets": "all",
+        "resources": {
+            "../sidecars/funasr_nano_mlx/main.py": "sidecars/funasr_nano_mlx/main.py",
+            "../sidecars/funasr_nano_mlx/requirements.txt": "sidecars/funasr_nano_mlx/requirements.txt",
+            "../sidecars/local_notes_agent/main.py": "sidecars/local_notes_agent/main.py",
+            "../sidecars/local_notes_agent/notes_mcp_server.py": "sidecars/local_notes_agent/notes_mcp_server.py",
+            "../sidecars/local_notes_agent/web_mcp_server.py": "sidecars/local_notes_agent/web_mcp_server.py",
+            "../sidecars/local_notes_agent/requirements.txt": "sidecars/local_notes_agent/requirements.txt",
+            "../runtime": "runtime"
+        },
+        "icon": [
+            "icons/32x32.png",
+            "icons/128x128.png",
+            "icons/128x128@2x.png",
+            "icons/icon.icns",
+            "icons/icon.ico"
+        ],
+        "macOS": {
+            "entitlements": "entitlements.plist",
+            "exceptionDomain": "",
+            "frameworks": [],
+            "providerShortName": null,
+            "signingIdentity": "-",
+            "hardenedRuntime": true,
+            "minimumSystemVersion": "10.15",
+            "dmg": {
+                "background": "../assets/branding/generated/dmg-background.png",
+                "windowSize": {
+                    "width": 660,
+                    "height": 400
+                },
+                "appPosition": {
+                    "x": 180,
+                    "y": 190
+                },
+                "applicationFolderPosition": {
+                    "x": 480,
+                    "y": 190
+                }
+            }
+        }
+    }
+}

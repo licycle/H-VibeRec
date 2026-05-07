@@ -1,0 +1,309 @@
+/* ========================================
+   Common Button Styles
+   - Mini buttons
+   - Toolbar icon buttons
+   - Modal buttons
+   - Action buttons
+   ======================================== */
+
+/* Mini buttons */
+.mini-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0;
+}
+.mini-btn:hover { background: var(--hover); color: var(--text); }
+.mini-btn.danger { color: var(--danger); border-color: rgba(239, 68, 68, 0.35); }
+.mini-btn.danger:hover { background: rgba(239, 68, 68, 0.12); color: var(--danger); }
+
+/* Toolbar icon-only buttons */
+.toolbar-icon-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-size: 0;
+}
+.toolbar-icon-btn:hover { background: var(--hover); color: var(--text); }
+.toolbar-icon-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.record-btn {
+  position: relative;
+  flex-shrink: 0;
+}
+.record-btn.recording { color: var(--danger); border-color: var(--danger); }
+.record-btn:not(.recording) { color: var(--success); }
+.record-btn.disabled { opacity: 0.5; cursor: not-allowed; }
+.record-btn .record-indicator {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  background: var(--danger);
+  border-radius: 50%;
+  animation: pulse 1.5s infinite;
+}
+
+/* Modal buttons */
+.modal-primary,
+.modal-secondary {
+  min-width: 96px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--button-font-size-sm);
+  font-weight: 500;
+}
+
+.modal-primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+}
+
+.modal-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.modal-primary:not(:disabled):hover {
+  filter: brightness(0.96);
+}
+
+.modal-secondary:hover {
+  background: var(--hover);
+}
+
+/* Edit action buttons (small) */
+.edit-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.edit-action-btn.save-btn {
+  background-color: #10b981;
+  color: white;
+}
+
+.edit-action-btn.save-btn:hover {
+  background-color: #059669;
+}
+
+.edit-action-btn.cancel-btn {
+  background-color: #ef4444;
+  color: white;
+}
+
+.edit-action-btn.cancel-btn:hover {
+  background-color: #dc2626;
+}
+
+/* Primary action buttons */
+.primary-action-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  font-size: 0;
+}
+
+.primary-action-btn:hover { background: var(--hover); }
+
+.primary-action-btn.play-btn {
+  color: #059669;
+  border-color: #d1fae5;
+  background: #f0fdf4;
+}
+
+.primary-action-btn.play-btn:hover {
+  background: #d1fae5 !important;
+  border-color: #059669;
+  color: #047857;
+}
+
+.play-btn { color: #059669; border-color: #d1fae5; }
+.play-btn:hover { background: var(--hover); border-color: var(--border); color: var(--text); }
+
+.edit-btn { color: var(--muted); border-color: var(--border); }
+.edit-btn:hover { background: var(--hover); border-color: var(--border); color: var(--text); }
+.edit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.edit-btn:disabled:hover { background: var(--panel); border-color: var(--border); }
+
+.export-btn { color: var(--muted); border-color: var(--border); }
+.export-btn:hover { background: var(--hover); border-color: var(--border); color: var(--text); }
+
+.delete-btn { color: var(--muted); border-color: var(--border); }
+.delete-btn:hover { background: var(--hover); border-color: var(--border); color: var(--text); }
+
+/* Settings button */
+.settings-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  transition: all 0.15s ease;
+  width: 28px;
+  height: 28px;
+}
+
+.settings-btn:hover {
+  background-color: var(--hover);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.settings-cancel-btn {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--button-font-size-sm);
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.settings-cancel-btn:hover {
+  background: var(--hover);
+  border-color: var(--border);
+}
+
+.settings-save-btn {
+  padding: 0.5rem 1rem;
+  background: #10b981;
+  border: 1px solid #10b981;
+  color: white;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--button-font-size-sm);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.15s ease;
+}
+
+.settings-save-btn:hover {
+  background: #059669;
+  border-color: #059669;
+}
+
+.settings-close-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  transition: all 0.15s ease;
+}
+
+.settings-close-btn:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+/* Action menu button */
+.action-menu-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  color: var(--muted);
+  font-size: 0;
+}
+
+.action-menu-btn:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.collapse-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  transition: all 0.15s ease;
+}
+
+.collapse-btn:hover {
+  background-color: var(--hover);
+  color: var(--text);
+}
+
+.refresh-btn {
+  /* Inherits width and height from .icon-btn (28px x 28px) */
+  border: 1px solid var(--border);
+  background: var(--panel);
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  color: var(--muted);
+}
+
+.refresh-btn:hover { background: var(--hover); border-color: var(--border); color: var(--text); }
+.refresh-btn:active { transform: rotate(180deg); }
+
+/* Button animations */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}

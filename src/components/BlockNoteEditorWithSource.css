@@ -1,0 +1,89 @@
+/* BlockNote Editor with Source Mode Container */
+.blocknote-editor-with-source {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+/* BlockNote Editor Customization */
+.blocknote-editor-with-source .bn-container {
+  height: 100%;
+  overflow: auto;
+}
+
+.blocknote-editor-with-source .bn-editor {
+  padding: 16px;
+  padding-left: 55px; /* 为左侧按钮留出足够空间 */
+}
+
+/* 确保 BlockNote 的侧边菜单有足够空间 */
+.blocknote-editor-with-source .bn-block-outer {
+  margin-left: 5px;
+}
+
+/* BlockNote 侧边菜单定位调整 */
+.blocknote-editor-with-source .bn-side-menu {
+  left: 16px; /* 调整侧边菜单位置 */
+}
+
+/* CodeMirror customization to match app theme */
+.blocknote-editor-with-source .cm-editor {
+  height: 100%;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 0.875rem;
+}
+
+.blocknote-editor-with-source .cm-scroller {
+  overflow: auto;
+}
+
+.blocknote-editor-with-source .cm-content {
+  padding: 16px;
+}
+
+.blocknote-editor-with-source .cm-line {
+  line-height: 1.6;
+}
+
+/* Dark theme adjustments for CodeMirror */
+.blocknote-editor-with-source .cm-editor.cm-focused {
+  outline: none;
+}
+
+/* Ensure both editors take full height */
+.blocknote-editor-with-source > div {
+  flex: 1;
+  overflow: auto;
+}
+
+/* BlockNote dark mode improvements */
+.blocknote-editor-with-source [data-theming-css-variables-demo] {
+  height: 100%;
+}
+
+.blocknote-editor-with-source.read-only {
+  height: auto;
+  min-height: 0;
+}
+
+.blocknote-editor-with-source.read-only .bn-container {
+  height: auto;
+  overflow: visible;
+  background: transparent;
+}
+
+.blocknote-editor-with-source.read-only .bn-editor {
+  min-height: 0;
+  background: transparent;
+}
+
+.blocknote-editor-with-source.read-only.compact .bn-editor {
+  padding: 0;
+  font-size: calc(1rem * var(--blocknote-font-scale, 0.875));
+  line-height: 1.45;
+}
+
+.blocknote-editor-with-source.read-only.compact .bn-block-outer {
+  margin-left: 0;
+}

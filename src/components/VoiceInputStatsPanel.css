@@ -1,0 +1,81 @@
+.voice-input-stats-panel {
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.voice-input-stats-summary {
+  width: 100%;
+  min-height: 40px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.voice-input-stats-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.voice-input-stats-primary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  padding: 0 0.75rem 0.75rem;
+}
+
+.voice-input-stats-details {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  padding: 0 0.75rem 0.75rem;
+}
+
+.voice-input-stat-card {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  padding: 0.625rem 0.6875rem;
+}
+
+.voice-input-stat-label {
+  display: block;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.2;
+  margin-bottom: 0.25rem;
+}
+
+.voice-input-stat-value {
+  display: block;
+  color: var(--text);
+  font-size: 1.0625rem;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .voice-input-stats-details {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.left-sidebar .voice-input-stats-panel {
+  flex-shrink: 0;
+  border-top: 0;
+}
+
+.left-sidebar .voice-input-stats-details {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}

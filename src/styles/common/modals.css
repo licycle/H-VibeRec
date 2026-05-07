@@ -1,0 +1,139 @@
+/* ========================================
+   Common Modal Styles
+   - Modal backdrop and sheet
+   - Modal header, body, footer
+   - Modal variations
+   - Changelog modal
+   - Feedback modal
+   ======================================== */
+
+/* Modal base structure */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.25);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 5vh 1rem 1rem;
+  z-index: 1000;
+  box-sizing: border-box;
+}
+
+.modal-sheet {
+  width: 880px;
+  max-width: 95vw;
+  max-height: 85vh;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-2);
+}
+
+.modal-tabs { display: flex; gap: 0.25rem; }
+
+.modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* Modal variations */
+.modal-sheet-compact {
+  width: 520px;
+  max-width: 92vw;
+}
+
+.modal-sheet-feedback {
+  width: min(520px, 92vw);
+  max-height: 80vh;
+}
+
+.modal-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding-top: 0.75rem;
+}
+
+/* Changelog modal */
+.changelog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.changelog-entry {
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+
+.changelog-entry-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.changelog-version {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.changelog-date {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.changelog-list {
+  margin: 0;
+  padding-left: 1rem;
+  color: var(--text);
+  font-size: 0.875rem;
+}
+
+.changelog-list li {
+  margin-bottom: 0.25rem;
+}
+
+/* Feedback modal */
+.feedback-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  flex: 1;
+}
+
+.feedback-hint {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.feedback-status {
+  font-size: 0.8125rem;
+  color: var(--success);
+}

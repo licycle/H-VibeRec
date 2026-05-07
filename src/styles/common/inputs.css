@@ -1,0 +1,129 @@
+/* ========================================
+   Common Input Styles
+   - Text inputs
+   - Textareas
+   - Form inputs
+   ======================================== */
+
+/* Meeting input */
+.meeting-input {
+  flex: 1;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+}
+
+/* Note title input */
+.note-title-input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+/* Meeting title input */
+.meeting-title-input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+/* Assistant input */
+.assistant-input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+}
+
+.assistant-input:disabled {
+  background: var(--panel-2);
+}
+
+/* Setting input */
+.setting-input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.875rem;
+  transition: border-color 0.15s ease;
+  background: var(--panel);
+  box-sizing: border-box;
+  color: var(--text);
+}
+
+.setting-input:focus {
+  outline: none;
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+}
+
+/* Edit name input */
+.edit-name-input {
+  flex: 1;
+  padding: 0.25rem 0.5rem;
+  border: 2px solid var(--primary);
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  background: var(--panel);
+  color: var(--text);
+  outline: none;
+}
+
+.edit-name-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Feedback textarea */
+.feedback-textarea {
+  width: 100%;
+  resize: vertical;
+  box-sizing: border-box;
+  flex: 0 1 auto;
+  min-height: 160px;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* Checkbox styles */
+.setting-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel);
+  cursor: pointer;
+  position: relative;
+  appearance: none;
+  transition: all 0.15s ease;
+}
+
+.setting-label input[type="checkbox"]:checked {
+  background: #10b981;
+  border-color: #10b981;
+}
+
+.setting-label input[type="checkbox"]:checked::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: bold;
+}

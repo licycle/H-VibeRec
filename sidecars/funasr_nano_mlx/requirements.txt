@@ -1,0 +1,10 @@
+huggingface_hub>=0.30.0
+httpx[socks]>=0.28.0
+modelscope>=1.29.0
+funasr>=1.0.0
+torch
+torchaudio
+numpy>=1.23
+imageio-ffmpeg>=0.6.0
+openai>=1.75.0
+openai-agents>=0.0.17
