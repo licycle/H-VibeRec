@@ -38,7 +38,7 @@ export default function VoiceInputStatsPanel() {
   const displayStats = stats || emptyStats;
 
   return (
-    <section className="voice-input-stats-panel" aria-label="语音输入法统计">
+    <section className="voice-input-stats-panel" aria-label="语音转录统计">
       <button
         type="button"
         className="voice-input-stats-summary"
@@ -46,7 +46,7 @@ export default function VoiceInputStatsPanel() {
       >
         {expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
         <Mic2 size={15} />
-        <span className="voice-input-stats-title">语音输入法</span>
+        <span className="voice-input-stats-title">语音转录</span>
       </button>
 
       <div className="voice-input-stats-primary">

@@ -78,11 +78,6 @@ async fn perform_click(
 ) -> Result<(String, Option<String>), String> {
     match click_action(item) {
         ClickAction::CopyAndRestore => {
-            let target = item
-                .target
-                .as_ref()
-                .ok_or("本条听写未记录可恢复的位置，内容已保留")?;
-
             // A semi-automatic notification consumes its pending item as
             // copied, but never dispatches Cmd+V. Automatic items are already
             // actioned by the FIFO worker and only need their text copied.
@@ -101,6 +96,14 @@ async fn perform_click(
             } else {
                 native::call(app, json!({"op":"copy", "text":item.text})).await?;
             }
+
+            // Copying is deliberately independent from target restoration. A
+            // missing or stale target must never discard the result from the
+            // system clipboard.
+            let target = item
+                .target
+                .as_ref()
+                .ok_or("本条听写未记录可恢复的位置，内容已复制到剪贴板")?;
 
             // Copy first, then return to the exact recorded window/caret. The
             // result deliberately remains in the system clipboard for the
@@ -146,7 +149,10 @@ pub(super) async fn clicked(app: &AppHandle, id: &str) -> Result<(), String> {
     }
     log::info!("Notification action: id={id} seq={} action={:?} delivery={} result={message} detail={detail:?}",
         item.seq, click_action(&item), item.delivery_status);
-    crate::voice_input::show_navigation_feedback(app, &format!("#{} {message}", item.seq));
+    // Notification clicks must never publish a foreground feedback event: the
+    // UI handler may open the H-VibeRec window, stealing focus from the app
+    // the user is currently working in. The native notification and pastebox
+    // state already provide the feedback without changing foreground focus.
     changed(app).await;
     result.map(|_| ())
 }

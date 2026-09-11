@@ -36,6 +36,51 @@ pub fn record_voice_input_success_at(text: &str, inserted_at: &str) -> Result<()
     Ok(())
 }
 
+/// Records completion of one dictation/refinement job exactly once. Delivery
+/// happens later (or may fail), so it must not determine whether the voice
+/// input is counted. The item UUID is the idempotency key across retries and
+/// repeated notification/paste actions.
+pub fn record_voice_input_completion(
+    item_id: &str,
+    text: &str,
+) -> Result<Option<VoiceInputStats>, String> {
+    init_db()?;
+    let completed_at = now_iso();
+    let day = voice_input_day_from_iso(&completed_at)?;
+    let char_count = crate::voice_input::text::count_inserted_chars(text);
+    let conn = connect()?;
+    let tx = conn
+        .unchecked_transaction()
+        .map_err(|e| format!("Failed to start voice input stats transaction: {e}"))?;
+    let inserted = tx
+        .execute(
+            "INSERT OR IGNORE INTO voice_input_stat_events (item_id, char_count, completed_at) VALUES (?1, ?2, ?3)",
+            params![item_id, char_count, completed_at],
+        )
+        .map_err(|e| format!("Failed to record voice input completion: {e}"))?;
+    if inserted == 0 {
+        tx.rollback().map_err(|e| e.to_string())?;
+        return Ok(None);
+    }
+    tx.execute(
+        r#"
+        INSERT INTO voice_input_daily_stats
+          (day, success_count, success_chars, last_success_at, last_success_chars, updated_at)
+        VALUES (?1, 1, ?2, ?3, ?2, ?4)
+        ON CONFLICT(day) DO UPDATE SET
+          success_count = success_count + 1,
+          success_chars = success_chars + excluded.success_chars,
+          last_success_at = excluded.last_success_at,
+          last_success_chars = excluded.last_success_chars,
+          updated_at = excluded.updated_at
+        "#,
+        params![day, char_count, completed_at, now_iso()],
+    )
+    .map_err(|e| format!("Failed to update voice input completion stats: {e}"))?;
+    tx.commit().map_err(|e| e.to_string())?;
+    get_voice_input_stats().map(Some)
+}
+
 pub fn get_voice_input_stats() -> Result<VoiceInputStats, String> {
     let today = Local::now().date_naive().to_string();
     get_voice_input_stats_for_day(&today)

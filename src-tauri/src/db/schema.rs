@@ -247,6 +247,7 @@ fn reset_schema_if_needed(conn: &Connection) -> Result<(), String> {
         DROP TABLE IF EXISTS assistant_prompt_templates;
         DROP TABLE IF EXISTS assistant_sessions;
         DROP TABLE IF EXISTS voice_input_daily_stats;
+        DROP TABLE IF EXISTS voice_input_stat_events;
         "#,
     )
     .map_err(|e| format!("Failed to reset local database schema: {e}"))?;

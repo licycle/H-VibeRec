@@ -50,6 +50,11 @@ pub(super) fn migrate_pastebox(conn: &Connection) -> Result<(), String> {
         );
         CREATE INDEX IF NOT EXISTS idx_voice_input_outbox_status
         ON voice_input_outbox(delivery_status, seq);
+        CREATE TABLE IF NOT EXISTS voice_input_stat_events (
+            item_id TEXT PRIMARY KEY,
+            char_count INTEGER NOT NULL,
+            completed_at TEXT NOT NULL
+        );
         DELETE FROM app_settings WHERE key = 'pastebox_shortcuts';",
     )
     .map_err(|e| format!("无法建立语音粘贴箱：{e}"))

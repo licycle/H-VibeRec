@@ -543,6 +543,11 @@ async fn finish_samples(
         }
     };
     crate::db::finish_paste_refinement(&job.id, &polish.text, polish.error.as_deref())?;
+    // Count the completed transcription/refinement job independently of the
+    // eventual delivery result. This is idempotent by job UUID.
+    if let Some(stats) = crate::db::record_voice_input_completion(&job.id, &polish.text)? {
+        let _ = app.emit("voice-input-stats-updated", stats);
+    }
     // The capture remains specific to this UUID and cannot replace another
     // recording's global target hint. Never sample the current foreground here.
     if let Some(context) = job.context {

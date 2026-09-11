@@ -377,11 +377,6 @@ async fn deliver_with_feedback(
         Err(error) => ("failed", Some(error)),
     };
     let saved = db::finish_paste_delivery(id, &lease, status, error.as_deref())?;
-    if status == "verified" {
-        if let Ok(stats) = db::record_voice_input_success(text) {
-            let _ = app.emit("voice-input-stats-updated", stats);
-        }
-    }
     let _ = native::call(app, json!({"op": "remove_notification", "id": id})).await;
     changed(app).await;
     if status == "failed" && open_on_failure && !automatic {

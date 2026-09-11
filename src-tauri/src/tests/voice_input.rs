@@ -123,6 +123,22 @@ fn voice_input_stats_aggregate_daily_and_total_without_history() {
 }
 
 #[test]
+fn voice_input_completion_stats_are_idempotent_and_delivery_independent() {
+    let _app_data = TestAppData::new("voice-input-completion-stats");
+
+    let first =
+        db::record_voice_input_completion("job-1", "第一条转录").expect("record completion");
+    assert!(first.is_some());
+    let duplicate = db::record_voice_input_completion("job-1", "重复投递不应重复统计")
+        .expect("record duplicate completion");
+    assert!(duplicate.is_none());
+
+    let stats = db::get_voice_input_stats().expect("load completion stats");
+    assert_eq!(stats.total_success_count, 1);
+    assert_eq!(stats.total_success_chars, 5);
+}
+
+#[test]
 fn voice_input_char_count_uses_unicode_scalar_count() {
     assert_eq!(
         crate::voice_input::text::count_inserted_chars("  hello  "),

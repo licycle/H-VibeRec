@@ -1,6 +1,6 @@
 [package]
 name = "hit-vvc"
-version = "0.2.9"
+version = "0.2.10"
 description = "Local ASR and LLM meeting summary app"
 authors = ["you"]
 license = "AGPL-3.0-or-later"
