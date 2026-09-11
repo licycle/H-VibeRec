@@ -423,10 +423,10 @@ fn voice_input_settings_reject_invalid_hotkey_before_saving() {
 }
 
 #[test]
-fn voice_input_accessibility_dev_hint_names_the_dev_binary() {
+fn voice_input_accessibility_dev_hint_names_the_helper_runtime() {
     let hint = crate::voice_input::accessibility_permission_hint(true);
 
-    assert!(hint.contains("target/debug/hit-vvc"));
+    assert!(hint.contains("Python"));
     assert!(hint.contains("Code"));
     assert!(hint.contains("Terminal"));
 }

@@ -105,7 +105,7 @@ pub(crate) fn schedule_dictation_warmup(app: AppHandle, reason: &'static str, de
 }
 
 async fn warmup_dictation_worker(app: AppHandle, reason: &'static str) -> Result<(), String> {
-    let settings = crate::db::get_settings()?;
+    let settings = crate::db::get_runtime_settings()?;
     let meeting_recording_active = crate::recording::is_recording();
     if !should_startup_dictation_warmup(&settings, meeting_recording_active) {
         log::info!(

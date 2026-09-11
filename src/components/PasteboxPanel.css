@@ -1,0 +1,86 @@
+html.pastebox-window, body.pastebox-window, body.pastebox-window #root {
+  margin: 0; padding: 0; min-width: 0; min-height: 0; width: 100%; height: 100%; overflow: hidden;
+}
+.pastebox-panel {
+  --pb-ink: #22352f; --pb-muted: #718079; --pb-line: #e4e9e5; --pb-accent: #237356;
+  width: 100%; height: 100dvh; display: flex; flex-direction: column; color: var(--pb-ink);
+  background: #fafbf9; font: 12px/1.5 -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
+  box-sizing: border-box; border: 1px solid var(--pb-line);
+}
+.pastebox-panel * { box-sizing: border-box; }
+.pastebox-panel button, .pastebox-panel select, .pastebox-panel input { font: inherit; }
+.pastebox-panel button { cursor: pointer; transition: background .12s; }
+.pastebox-panel button:disabled { cursor: default; opacity: .5; }
+.pastebox-panel button:focus-visible, .pastebox-panel input:focus-visible, .pastebox-panel select:focus-visible {
+  outline: 2px solid var(--pb-accent); outline-offset: 2px;
+}
+.pastebox-header { display: flex; align-items: center; gap: 9px; padding: 15px 16px 12px; flex-shrink: 0; }
+.pastebox-header h1 { margin: 0; font-size: 17px; letter-spacing: -.4px; font-weight: 650; }
+.pastebox-header p { margin: 1px 0 0; font-size: 10px; color: var(--pb-muted); }
+.pastebox-mark { display: grid; place-items: center; width: 33px; height: 36px; border-radius: 9px; color: var(--pb-accent); background: #e6f0e9; }
+.pastebox-count { margin-left: auto; white-space: nowrap; color: var(--pb-accent); font-size: 10px; background: #eaf2ec; padding: 3px 7px; border-radius: 20px; }
+.pastebox-icon { border: 0; background: none; color: var(--pb-muted); padding: 2px; display: grid; place-items: center; }
+.pastebox-controls { flex-shrink: 0; padding: 0 16px 11px; border-bottom: 1px solid var(--pb-line); }
+.pastebox-modes { display: flex; padding: 3px; gap: 3px; border: 1px solid #e2e8e2; border-radius: 8px; background: #eef1ed; }
+.pastebox-modes button { flex: 1; border: 0; color: #637268; border-radius: 5px; background: transparent; padding: 5px; }
+.pastebox-modes button[aria-pressed=true] { background: white; color: var(--pb-accent); box-shadow: 0 1px 3px #1c372215; font-weight: 600; }
+.pastebox-mode-hint { margin: 7px 0 10px; color: var(--pb-muted); font-size: 11px; min-height: 17px; }
+.pastebox-target { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.pastebox-target > span { display: flex; align-items: center; gap: 3px; width: 102px; flex: 0 0 auto; color: #54645b; font-size: 11px; }
+.pastebox-target select { min-width: 0; width: 100%; padding: 4px 6px; background: white; color: var(--pb-ink); border: 1px solid var(--pb-line); border-radius: 5px; text-overflow: ellipsis; }
+.pastebox-notification-toggle { display: flex; gap: 7px; margin-top: 10px; align-items: center; font-size: 12px; cursor: pointer; }
+.pastebox-notification-toggle input { accent-color: #416a50; }
+.pastebox-notification-note { display: flex; gap: 8px; padding: 9px 16px; flex-shrink: 0; background: #fff7e7; color: #866730; font-size: 11px; }
+.pastebox-notification-note svg { flex-shrink: 0; margin-top: 1px; }
+.pastebox-notification-note button { padding: 0; margin: 3px 0 0; display: block; background: none; border: 0; color: #6b541f; font-weight: 600; }
+.pastebox-error, .pastebox-notice { padding: 8px 16px; background: #fcefeb; color: #ab4a31; font-size: 11px; flex-shrink: 0; }
+.pastebox-notice { display: flex; align-items: center; gap: 6px; color: var(--pb-accent); background: #eaf4ed; }
+.pastebox-history-toolbar { padding: 12px 16px 6px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+.pastebox-filters { display: flex; gap: 14px; }
+.pastebox-filters button { border: 0; padding: 0 0 4px; background: none; color: var(--pb-muted); border-bottom: 2px solid transparent; }
+.pastebox-filters button[aria-pressed=true] { color: var(--pb-ink); border-color: var(--pb-accent); font-weight: 600; }
+.pastebox-next { display: flex; align-items: center; gap: 3px; color: var(--pb-accent); border: 0; background: none; font-size: 11px !important; }
+.pastebox-clear-history { display: flex; align-items: center; gap: 3px; color: #a48f83; border: 0; background: none; font-size: 11px !important; }
+.pastebox-clear-history:disabled { opacity: .4; cursor: default; }
+.pastebox-search { margin: 0 16px 9px; display: flex; align-items: center; gap: 6px; background: #f0f3ee; border-radius: 6px; padding: 6px 9px; color: #849087; flex-shrink: 0; }
+.pastebox-search input { border: 0; outline: 0; background: none; padding: 0; flex: 1; min-width: 0; color: var(--pb-ink); }
+.pastebox-items { flex: 1; min-height: 80px; overflow-y: auto; padding: 0 12px 12px; scrollbar-width: thin; }
+.pastebox-item { border: 1px solid var(--pb-line); border-radius: 9px; padding: 10px 11px 7px; margin: 0 0 8px; background: #fff; }
+.pastebox-item.requested { border-color: #61a885; box-shadow: 0 0 0 1px #61a88522; }
+.pastebox-item-meta { display: flex; gap: 7px; align-items: center; color: var(--pb-muted); font-size: 10px; }
+.pastebox-seq { color: #315c46; font-family: ui-monospace, monospace; font-size: 11px; }
+.pastebox-status { margin-left: auto; color: #5a7d5e; }
+.pastebox-status.failed, .pastebox-status.uncertain { color: #ac7647; }
+.pastebox-status.copied, .pastebox-status.sent, .pastebox-status.verified { color: #8a938d; }
+.pastebox-text { display: flex; align-items: flex-start; gap: 7px; width: 100%; text-align: left; padding: 8px 0 5px; border: 0; background: none; color: var(--pb-ink); }
+.pastebox-text span { flex: 1; min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.7; }
+.pastebox-text svg { flex-shrink: 0; color: #8ba899; margin-top: 5px; }
+.pastebox-text:hover:not(:disabled) { color: var(--pb-accent); }
+.pastebox-item-target { font-size: 10px; color: #8a948d; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pastebox-item-warning { margin: 4px 0; font-size: 10px; color: #ad7543; overflow-wrap: anywhere; }
+.pastebox-item-actions { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
+.pastebox-item-actions button { border: 0; background: none; color: #77847a; padding: 3px; font-size: 10px; display: flex; align-items: center; gap: 3px; }
+.pastebox-version { display: flex; gap: 4px; margin-right: auto; }
+.pastebox-version button[aria-pressed=true] { background: #edf4ee; color: var(--pb-accent); border-radius: 4px; padding-left: 5px; padding-right: 5px; }
+.pastebox-item-actions .pastebox-delete { color: #a48f83; }
+.pastebox-full { color: #919b93; font-size: 10px; margin-top: 3px; }
+.pastebox-full summary { cursor: pointer; width: fit-content; }
+.pastebox-full pre { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--pb-ink); font: inherit; font-size: 12px; line-height: 1.8; }
+.pastebox-full > span { overflow-wrap: anywhere; }
+.pastebox-empty { min-height: 160px; padding: 35px 24px; text-align: center; color: #a4b3a8; display: flex; flex-direction: column; align-items: center; }
+.pastebox-empty h2 { color: #75837a; font-size: 13px; font-weight: 500; margin: 12px 0 4px; }
+.pastebox-empty p { color: #97a298; max-width: 235px; margin: 0; font-size: 11px; }
+.pastebox-footer { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-top: 1px solid var(--pb-line); flex-shrink: 0; color: #97a097; font-size: 10px; }
+.pastebox-footer span { margin-right: auto; }
+.pastebox-footer button { border: 0; background: none; padding: 0; color: #6f7b71; font-size: 10px; }
+.pastebox-load-more { width: 100%; padding: 6px; background: none; border: 1px solid var(--pb-line); border-radius: 5px; color: var(--pb-muted); }
+.pastebox-settings { border: 1px solid var(--border-color, #e4e9e5); border-radius: 8px; padding: 14px; margin: 14px 0; }
+.pastebox-settings > p { font-size: 12px; color: var(--text-secondary, #718079); margin: 8px 0; }
+.pastebox-settings .pastebox-settings-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+@media (prefers-color-scheme: dark) {
+  .pastebox-panel { --pb-ink: #dce5dd; --pb-muted: #90a294; --pb-line: #334138; --pb-accent: #85caa5; background: #1d2621; }
+  .pastebox-mark, .pastebox-count, .pastebox-version button[aria-pressed=true] { background: #2d4134; }
+  .pastebox-modes, .pastebox-search { background: #273229; border-color: #3a483c; }
+  .pastebox-modes button[aria-pressed=true], .pastebox-target select, .pastebox-item { background: #29342c; }
+  .pastebox-target > span, .pastebox-seq { color: #9daf9e; }
+}

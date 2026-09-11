@@ -1,8 +1,13 @@
 use tauri::{AppHandle, Manager};
 
 use crate::types::{
-    VoiceInputDictationResult, VoiceInputPermissionStatus, VoiceInputStats, VoiceInputStatus,
+    VoiceInputPermissionStatus, VoiceInputStats, VoiceInputStatus, VoiceInputSubmission,
 };
+
+#[tauri::command]
+pub async fn set_voice_input_shortcut_capture_active(active: bool) -> Result<(), String> {
+    crate::voice_input::set_shortcut_capture_active(active)
+}
 
 #[tauri::command]
 pub async fn get_voice_input_stats() -> Result<VoiceInputStats, String> {
@@ -15,14 +20,18 @@ pub async fn get_voice_input_status() -> Result<VoiceInputStatus, String> {
 }
 
 #[tauri::command]
-pub async fn check_voice_input_permissions() -> Result<VoiceInputPermissionStatus, String> {
-    Ok(crate::voice_input::permission_status())
+pub async fn check_voice_input_permissions(
+    app: AppHandle,
+) -> Result<VoiceInputPermissionStatus, String> {
+    Ok(crate::voice_input::permission_status(&app).await)
 }
 
 #[tauri::command]
 pub async fn request_voice_input_accessibility_permission(
+    app: AppHandle,
 ) -> Result<VoiceInputPermissionStatus, String> {
-    Ok(crate::voice_input::request_accessibility_permission())
+    crate::pastebox::request_accessibility(&app).await?;
+    Ok(crate::voice_input::permission_status(&app).await)
 }
 
 #[tauri::command]
@@ -31,9 +40,7 @@ pub async fn start_voice_input_dictation(app: AppHandle) -> Result<VoiceInputSta
 }
 
 #[tauri::command]
-pub async fn stop_voice_input_dictation(
-    app: AppHandle,
-) -> Result<VoiceInputDictationResult, String> {
+pub async fn stop_voice_input_dictation(app: AppHandle) -> Result<VoiceInputSubmission, String> {
     crate::voice_input::stop_dictation(app).await
 }
 

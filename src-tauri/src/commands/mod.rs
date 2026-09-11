@@ -2,6 +2,7 @@ pub mod assistant;
 pub mod devices;
 pub mod files;
 pub mod local;
+pub mod pastebox;
 pub mod recording;
 pub mod voice_input;
 

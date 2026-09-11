@@ -11,6 +11,8 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
 const runtimeRoot = path.join(repoRoot, 'runtime', 'asr');
 const sidecarRequirements = path.join(repoRoot, 'sidecars', 'funasr_nano_mlx', 'requirements.txt');
 const assistantRequirements = path.join(repoRoot, 'sidecars', 'local_notes_agent', 'requirements.txt');
+const pasteboxRequirements = path.join(repoRoot, 'sidecars', 'pastebox_ax', 'requirements.txt');
+const pasteboxCheck = path.join(repoRoot, 'sidecars', 'pastebox_ax', 'main.py');
 const pythonVersionPrefix = process.env.VOICE_VIBE_PYTHON_VERSION || '3.11';
 const args = new Set(process.argv.slice(2));
 const checkOnly = args.has('--check');
@@ -132,12 +134,27 @@ async function verifyRuntime(verbose) {
     return false;
   }
 
+  if (process.platform === 'darwin') {
+    let axCheck = await runMaybe(python, ['-B', '-s', pasteboxCheck, '--check'], repoRoot);
+    if (!axCheck.ok && !checkOnly) {
+      await run(python, ['-m', 'pip', 'install', '-r', pasteboxRequirements], repoRoot);
+      axCheck = await runMaybe(python, ['-B', '-s', pasteboxCheck, '--check'], repoRoot);
+    }
+    if (!axCheck.ok) {
+      if (verbose) console.error(axCheck.output);
+      return false;
+    }
+  }
+
   return true;
 }
 
 async function installSidecarRequirements() {
   await run(pythonPath(), ['-m', 'pip', 'install', '-r', sidecarRequirements], repoRoot);
   await run(pythonPath(), ['-m', 'pip', 'install', '-r', assistantRequirements], repoRoot);
+  if (process.platform === 'darwin') {
+    await run(pythonPath(), ['-m', 'pip', 'install', '-r', pasteboxRequirements], repoRoot);
+  }
 }
 
 async function resolvePythonStandaloneAsset() {
@@ -235,7 +252,7 @@ async function normalizeRuntimeSymlinks() {
 async function writePosixFfmpegWrapper() {
   const wrapper = `#!/bin/sh
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-exec "$SCRIPT_DIR/python" -c 'import imageio_ffmpeg, os, sys; exe=imageio_ffmpeg.get_ffmpeg_exe(); os.execv(exe, [exe] + sys.argv[1:])' "$@"
+exec "$SCRIPT_DIR/python" -B -s -c 'import imageio_ffmpeg, os, sys; exe=imageio_ffmpeg.get_ffmpeg_exe(); os.execv(exe, [exe] + sys.argv[1:])' "$@"
 `;
   await writeFile(ffmpegPath(), wrapper);
   await chmod(ffmpegPath(), 0o755);

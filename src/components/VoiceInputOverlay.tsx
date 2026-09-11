@@ -5,8 +5,8 @@ import { VoiceInputStatusEvent } from '../appTypes';
 import { useVoiceInputService } from '../hooks/useServices';
 import './VoiceInputOverlay.css';
 
-const visiblePhases = new Set(['starting', 'listening', 'preparing_model', 'transcribing', 'refining', 'inserting', 'inserted', 'copied', 'failed', 'cancelled']);
-const finalPhases = new Set(['inserted', 'copied', 'failed', 'cancelled']);
+const visiblePhases = new Set(['starting', 'stopping', 'listening', 'preparing_model', 'transcribing', 'refining', 'inserting', 'inserted', 'copied', 'queued', 'failed', 'cancelled']);
+const finalPhases = new Set(['inserted', 'copied', 'queued', 'failed', 'cancelled']);
 interface VoiceInputOverlayProps {
   standalone?: boolean;
 }
@@ -167,7 +167,7 @@ function stopOverlayDrag(event: MouseEvent<HTMLElement>) {
 }
 
 function iconForPhase(phase: string) {
-  if (phase === 'inserted' || phase === 'copied') return <CheckCircle2 size={15} />;
+  if (phase === 'inserted' || phase === 'copied' || phase === 'queued') return <CheckCircle2 size={15} />;
   if (phase === 'failed') return <XCircle size={15} />;
   if (phase === 'refining') return <Wand2 size={15} />;
   if (phase === 'listening') return <Mic2 size={15} />;
@@ -183,6 +183,8 @@ function labelForPhase(phase: string) {
       return '麦克风启动中，请稍候';
     case 'preparing_model':
       return '正在准备 ASR 模型';
+    case 'stopping':
+      return '正在保存录音';
     case 'transcribing':
       return '正在转写';
     case 'refining':
@@ -193,6 +195,8 @@ function labelForPhase(phase: string) {
       return '已写入';
     case 'copied':
       return '已复制';
+    case 'queued':
+      return '已保存到粘贴箱';
     case 'failed':
       return '语音输入失败';
     case 'cancelled':

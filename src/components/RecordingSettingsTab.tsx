@@ -33,6 +33,7 @@ import { AppFontSize } from '../hooks/useAppearance';
 import { useVoiceInputService } from '../hooks/useServices';
 import type { VoiceInputPermissionSettingsTarget } from '../services';
 import './RecordingSettingsTab.css';
+import PasteboxSettings from './PasteboxSettings';
 
 export type RecordingSettingsPane = 'general' | 'templates' | 'assistant' | 'voiceInput' | 'diagnostics';
 
@@ -749,6 +750,7 @@ export function RecordingSettingsTab({ initialPane, showPaneTabs = true, darkMod
             </div>
 
             <div className="settings-field">
+              <PasteboxSettings />
               <label>语音修正 Prompt</label>
               <textarea
                 value={settingsDraft.voice_input_refinement_prompt}
@@ -773,7 +775,7 @@ export function RecordingSettingsTab({ initialPane, showPaneTabs = true, darkMod
               />
               <Info
                 label="插入策略"
-                value="优先 Accessibility 直接替换当前焦点选区；不可用时尝试剪贴板粘贴，失败时保留文本到剪贴板。"
+                value="转录先保存到菜单栏粘贴箱；自动或通知确认后恢复已记录的输入控件与文字选区，再通过系统按键粘贴。无法校验位置时保留内容。"
               />
               <Info
                 label="系统限制"
@@ -893,10 +895,16 @@ function HotkeyCaptureField({
   value: string;
   onChange: (value: string) => void;
 }) {
+  const voiceInputService = useVoiceInputService();
   const [capturing, setCapturing] = useState(false);
   const [captureError, setCaptureError] = useState<string | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const modifierCaptureTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!capturing) return;
+    return () => { void voiceInputService.setShortcutCaptureActive(false).catch(() => undefined); };
+  }, [capturing]);
 
   useEffect(() => {
     if (!capturing) return;
@@ -950,10 +958,13 @@ function HotkeyCaptureField({
     };
   }, [capturing, onChange]);
 
-  const startCapture = () => {
-    setCapturing(true);
-    setCaptureError(null);
-    window.setTimeout(() => buttonRef.current?.focus(), 0);
+  const startCapture = async () => {
+    try {
+      await voiceInputService.setShortcutCaptureActive(true);
+      setCapturing(true);
+      setCaptureError(null);
+      window.setTimeout(() => buttonRef.current?.focus(), 0);
+    } catch (error) { setCaptureError(String(error)); }
   };
 
   return (
@@ -964,6 +975,7 @@ function HotkeyCaptureField({
         type="button"
         className={`hotkey-capture-button ${capturing ? 'capturing' : ''}`}
         onClick={startCapture}
+        onBlur={() => setCapturing(false)}
       >
         <Keyboard size={14} />
         <span>{capturing ? '按下新的快捷键' : displayHotkey(value)}</span>

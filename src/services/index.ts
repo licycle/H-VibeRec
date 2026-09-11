@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import {
-  VoiceInputDictationResult,
+  VoiceInputSubmission,
   VoiceInputPermissionStatus,
   VoiceInputStats,
   VoiceInputStatus,
@@ -30,11 +30,12 @@ export interface FileService {
 }
 
 export interface VoiceInputService {
+  setShortcutCaptureActive(active: boolean): Promise<void>;
   getStats(): Promise<VoiceInputStats>;
   getStatus(): Promise<VoiceInputStatus>;
   checkPermissions(): Promise<VoiceInputPermissionStatus>;
   startDictation(): Promise<VoiceInputStatus>;
-  stopDictation(): Promise<VoiceInputDictationResult>;
+  stopDictation(): Promise<VoiceInputSubmission>;
   cancelDictation(): Promise<VoiceInputStatus>;
   toggleDictation(): Promise<VoiceInputStatus>;
   openMainWindow(): Promise<void>;
@@ -88,6 +89,13 @@ class TauriFileService implements FileService {
 }
 
 class TauriVoiceInputService implements VoiceInputService {
+  private captureQueue: Promise<void> = Promise.resolve();
+  setShortcutCaptureActive(active: boolean): Promise<void> {
+    this.captureQueue = this.captureQueue.catch(() => undefined)
+      .then(() => invoke<void>('set_voice_input_shortcut_capture_active', { active }));
+    return this.captureQueue;
+  }
+
   async getStats(): Promise<VoiceInputStats> {
     return invoke('get_voice_input_stats');
   }
@@ -104,7 +112,7 @@ class TauriVoiceInputService implements VoiceInputService {
     return invoke('start_voice_input_dictation');
   }
 
-  async stopDictation(): Promise<VoiceInputDictationResult> {
+  async stopDictation(): Promise<VoiceInputSubmission> {
     return invoke('stop_voice_input_dictation');
   }
 

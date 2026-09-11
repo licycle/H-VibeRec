@@ -6,6 +6,7 @@ mod db;
 mod files;
 mod llm;
 mod local_queue;
+mod pastebox;
 mod recording;
 mod sidecar;
 mod storage;
@@ -153,6 +154,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            #[cfg(all(debug_assertions, target_os = "macos"))]
+            crate::pastebox::audit::prepare_ui(app.handle());
             crate::db::init_db().map_err(|error| {
                 log::error!("Failed to initialize local database: {}", error);
                 error
@@ -163,10 +166,22 @@ pub fn run() {
             })?;
             crate::local_queue::init(app.handle().clone());
             crate::voice_input::init(app.handle().clone());
+            crate::pastebox::init(app.handle().clone())?;
+            #[cfg(all(debug_assertions, target_os = "macos"))]
+            crate::pastebox::audit::schedule(app.handle().clone());
             info!("hit-vvc application setup complete");
             Ok(())
         })
         .on_window_event(|window, event| {
+            if window.label() == crate::pastebox::WINDOW_LABEL {
+                if let tauri::WindowEvent::Focused(false) = event {
+                    let _ = window.hide();
+                }
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
             if window.label() == MAIN_WINDOW_LABEL {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
@@ -192,6 +207,20 @@ pub fn run() {
             check_voice_input_permissions,
             request_voice_input_accessibility_permission,
             log_voice_input_frontend_event,
+            commands::voice_input::set_voice_input_shortcut_capture_active,
+            commands::pastebox::get_pastebox_state,
+            commands::pastebox::open_pastebox,
+            commands::pastebox::set_pastebox_notifications_enabled,
+            commands::pastebox::close_pastebox,
+            commands::pastebox::set_pastebox_mode,
+            commands::pastebox::act_on_pastebox_item,
+            commands::pastebox::paste_next_item,
+            commands::pastebox::delete_pastebox_item,
+            commands::pastebox::clear_pastebox_history,
+            commands::pastebox::retry_dictation_job,
+            commands::pastebox::request_pastebox_notifications,
+            commands::pastebox::request_pastebox_accessibility,
+            commands::pastebox::quit_from_pastebox,
             // File commands
             list_workspace_recordings,
             list_workspace_dirs,

@@ -20,9 +20,17 @@ fn setting(conn: &Connection, key: &str, fallback: &str) -> Result<String, Strin
 }
 
 pub fn get_settings() -> Result<AppSettings, String> {
+    read_settings(has_llm_api_key())
+}
+
+/// Hotkey and recording paths need configuration, not a Keychain credential lookup.
+pub fn get_runtime_settings() -> Result<AppSettings, String> {
+    read_settings(false)
+}
+
+fn read_settings(api_key_present: bool) -> Result<AppSettings, String> {
     init_db()?;
     let conn = connect()?;
-    let api_key_present = has_llm_api_key();
     let raw_asr_model_repo = setting(&conn, "asr_model_repo", DEFAULT_ASR_MODEL_REPO)?;
     let raw_asr_model_source = setting(&conn, "asr_model_source", DEFAULT_ASR_MODEL_SOURCE)?;
     let legacy_default_model = raw_asr_model_repo.trim().is_empty()
@@ -174,6 +182,9 @@ pub fn get_llm_api_key() -> Result<String, String> {
 }
 
 pub fn has_llm_api_key() -> bool {
+    #[cfg(test)]
+    return false;
+    #[cfg(not(test))]
     keyring::Entry::new(APP_SERVICE, LLM_KEY_ACCOUNT)
         .ok()
         .and_then(|entry| entry.get_password().ok())

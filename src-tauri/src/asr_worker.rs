@@ -78,14 +78,22 @@ impl AsrWorkerPool {
         }
 
         let request_started = Instant::now();
-        let result = if let Some(worker) = guard.worker.as_mut() {
-            worker.send_request(&request).await
+        // Take ownership while awaiting I/O. If a caller cancels, kill_on_drop
+        // discards the worker and its unread response instead of giving it to
+        // the next job. Queue waiting is excluded from the request timeout.
+        let mut active_worker = guard.worker.take();
+        let result = if let Some(worker) = active_worker.as_mut() {
+            let timeout = if profile == "dictation" { 180 } else { 3600 };
+            tokio::time::timeout(Duration::from_secs(timeout), worker.send_request(&request))
+                .await
+                .unwrap_or_else(|_| Err(format!("ASR 请求超时（{timeout} 秒），可以重试")))
         } else {
             Err("ASR worker was not available".to_string())
         };
 
         match result {
             Ok(value) => {
+                guard.worker = active_worker.take();
                 guard.last_used_at = Some(Instant::now());
                 let generation = guard.generation;
                 let idle_ttl_secs = idle_ttl_for_request(&request);
@@ -120,7 +128,7 @@ impl AsrWorkerPool {
                     request_started.elapsed().as_millis(),
                     error
                 );
-                if let Some(mut worker) = guard.worker.take() {
+                if let Some(mut worker) = active_worker.take() {
                     let _ = worker.child.kill().await;
                     let _ = worker.child.wait().await;
                 }
@@ -203,6 +211,9 @@ impl AsrWorkerProcess {
             }
             let value: Value = serde_json::from_str(trimmed)
                 .map_err(|e| format!("Invalid ASR worker JSON response: {e}; line={trimmed}"))?;
+            if value.get("id") != request.get("id") {
+                return Err("ASR worker returned a different job ID".into());
+            }
             if let Some(error) = worker_error_message(&value) {
                 return Err(error);
             }
@@ -223,9 +234,11 @@ async fn start_worker(app: &AppHandle, settings: &AppSettings) -> Result<AsrWork
     let mut command = tokio::process::Command::new(&runtime.python_path);
     command
         .env("VOICE_VIBE_ASR_RUNTIME", &runtime.root)
+        .env("PYTHONDONTWRITEBYTECODE", "1")
         .env("PATH", sidecar_path)
         .arg(&runtime.script_path)
         .arg("--server")
+        .kill_on_drop(true)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -331,6 +344,42 @@ fn set_proxy_env(command: &mut tokio::process::Command, key: &str, value: Option
 #[cfg(test)]
 mod tests {
     use serde_json::json;
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn worker_io_rejects_a_late_response_from_another_job() {
+        use std::process::Stdio;
+        use tokio::{io::BufReader, process::Command};
+        for (id, accepted) in [("old-recording", false), ("current-recording", true)] {
+            let response =
+                json!({"id": id, "ok": true, "result": {"plain_text": "fixture"}}).to_string();
+            let mut child = Command::new("/bin/sh")
+                .args([
+                    "-c",
+                    "read request; printf '%s\\n' \"$1\"",
+                    "asr-fixture",
+                    &response,
+                ])
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .kill_on_drop(true)
+                .spawn()
+                .unwrap();
+            let mut worker = super::AsrWorkerProcess {
+                stdin: child.stdin.take().unwrap(),
+                stdout: BufReader::new(child.stdout.take().unwrap()),
+                child,
+            };
+            let result = worker
+                .send_request(&json!({"id":"current-recording", "type":"transcribe"}))
+                .await;
+            assert_eq!(result.is_ok(), accepted);
+            if !accepted {
+                assert!(result.unwrap_err().contains("different job ID"));
+            }
+            let _ = worker.child.wait().await;
+        }
+    }
 
     #[test]
     fn dictation_requests_use_longer_idle_ttl_than_meeting_requests() {

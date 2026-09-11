@@ -1,7 +1,7 @@
 {
     "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
     "productName": "H-VibeRec",
-    "version": "0.2.0",
+    "version": "0.2.9",
     "identifier": "com.hit.vvc",
     "build": {
         "frontendDist": "../dist",
@@ -41,6 +41,21 @@
             "maximizable": false,
             "closable": false,
             "acceptFirstMouse": true
+        }, {
+            "label": "pastebox",
+            "title": "语音粘贴箱",
+            "width": 440,
+            "height": 620,
+            "minWidth": 380,
+            "minHeight": 420,
+            "resizable": false,
+            "visible": false,
+            "decorations": false,
+            "alwaysOnTop": true,
+            "visibleOnAllWorkspaces": true,
+            "skipTaskbar": true,
+            "focus": false,
+            "acceptFirstMouse": true
         }],
         "macOSPrivateApi": true,
         "security": {
@@ -61,7 +76,7 @@
             "capabilities": [{
                 "identifier": "main",
                 "description": "Main window capability for local recording, ASR, and LLM summary",
-                "windows": ["main", "voice-input-overlay"],
+                "windows": ["main", "voice-input-overlay", "pastebox"],
                 "permissions": [
                     "core:path:default",
                     "core:event:default",
@@ -83,6 +98,13 @@
         "active": true,
         "targets": "all",
         "resources": {
+            "../sidecars/pastebox_ax/main.py": "sidecars/pastebox_ax/main.py",
+            "../sidecars/pastebox_ax/macos.py": "sidecars/pastebox_ax/macos.py",
+            "../sidecars/pastebox_ax/window_identity.py": "sidecars/pastebox_ax/window_identity.py",
+            "../sidecars/pastebox_ax/lifecycle.py": "sidecars/pastebox_ax/lifecycle.py",
+            "../sidecars/pastebox_ax/service.py": "sidecars/pastebox_ax/service.py",
+            "../sidecars/pastebox_ax/anchors.py": "sidecars/pastebox_ax/anchors.py",
+            "../sidecars/pastebox_ax/requirements.txt": "sidecars/pastebox_ax/requirements.txt",
             "../sidecars/funasr_nano_mlx/main.py": "sidecars/funasr_nano_mlx/main.py",
             "../sidecars/funasr_nano_mlx/requirements.txt": "sidecars/funasr_nano_mlx/requirements.txt",
             "../sidecars/local_notes_agent/main.py": "sidecars/local_notes_agent/main.py",

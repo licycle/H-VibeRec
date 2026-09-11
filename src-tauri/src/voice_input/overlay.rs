@@ -25,6 +25,7 @@ fn is_overlay_visible_phase(phase: &str) -> bool {
     matches!(
         phase,
         "starting"
+            | "stopping"
             | "listening"
             | "preparing_model"
             | "transcribing"
@@ -32,13 +33,17 @@ fn is_overlay_visible_phase(phase: &str) -> bool {
             | "inserting"
             | "inserted"
             | "copied"
+            | "queued"
             | "failed"
             | "cancelled"
     )
 }
 
 fn is_overlay_final_phase(phase: &str) -> bool {
-    matches!(phase, "inserted" | "copied" | "failed" | "cancelled")
+    matches!(
+        phase,
+        "inserted" | "copied" | "queued" | "failed" | "cancelled"
+    )
 }
 
 fn show_voice_input_overlay(app: &AppHandle) {

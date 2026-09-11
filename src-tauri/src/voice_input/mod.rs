@@ -1,5 +1,6 @@
 pub mod hotkey;
 pub mod insertion;
+pub(crate) mod jobs;
 mod overlay;
 mod platform_hotkey;
 mod recorder;
@@ -29,8 +30,8 @@ use crate::commands::local::{
     auxiliary_model_paths_for_queue, ensure_dictation_model_ready_for_queue,
 };
 use crate::types::{
-    AppSettings, VoiceInputDictationResult, VoiceInputPermissionStatus, VoiceInputStatus,
-    VoiceInputStatusEvent,
+    AppSettings, VoiceInputPermissionStatus, VoiceInputStatus, VoiceInputStatusEvent,
+    VoiceInputSubmission,
 };
 
 const MIN_AUDIO_SAMPLES: usize = 12_000;
@@ -43,6 +44,18 @@ lazy_static! {
 
 static HOTKEY_WATCHER: Once = Once::new();
 static STARTUP_WARMUP: Once = Once::new();
+static SHORTCUT_CAPTURE_ACTIVE: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+pub fn set_shortcut_capture_active(active: bool) -> Result<(), String> {
+    let previous = SHORTCUT_CAPTURE_ACTIVE.swap(active, std::sync::atomic::Ordering::SeqCst);
+    if let Err(error) = reload_hotkey_registration() {
+        SHORTCUT_CAPTURE_ACTIVE.store(previous, std::sync::atomic::Ordering::SeqCst);
+        let _ = reload_hotkey_registration();
+        return Err(error);
+    }
+    Ok(())
+}
 
 #[derive(Debug, Clone)]
 enum HotkeyCommand {
@@ -52,7 +65,7 @@ enum HotkeyCommand {
         hotkey: String,
         reply: mpsc::Sender<Result<(), String>>,
     },
-    Triggered,
+    Triggered(Option<Result<crate::pastebox::DictationContext, String>>),
     EnterPressed,
     EscapePressed,
 }
@@ -62,10 +75,7 @@ enum VoiceInputPhase {
     Idle,
     Starting,
     Listening,
-    PreparingModel,
-    Transcribing,
-    Refining,
-    Inserting,
+    Stopping,
     Cancelled,
 }
 
@@ -75,10 +85,7 @@ impl VoiceInputPhase {
             VoiceInputPhase::Idle => "idle",
             VoiceInputPhase::Starting => "starting",
             VoiceInputPhase::Listening => "listening",
-            VoiceInputPhase::PreparingModel => "preparing_model",
-            VoiceInputPhase::Transcribing => "transcribing",
-            VoiceInputPhase::Refining => "refining",
-            VoiceInputPhase::Inserting => "inserting",
+            VoiceInputPhase::Stopping => "stopping",
             VoiceInputPhase::Cancelled => "cancelled",
         }
     }
@@ -91,6 +98,8 @@ struct VoiceInputState {
     enter_submit_available: bool,
     hotkey_label: String,
     started_at: Option<String>,
+    paste_context: Option<crate::pastebox::DictationContext>,
+    settings: Option<AppSettings>,
 }
 
 pub(crate) struct VoiceInputPolishOutcome {
@@ -108,6 +117,8 @@ impl Default for VoiceInputState {
             enter_submit_available: false,
             hotkey_label: String::new(),
             started_at: None,
+            paste_context: None,
+            settings: None,
         }
     }
 }
@@ -161,20 +172,36 @@ pub fn status() -> VoiceInputStatus {
     }
 }
 
-pub fn permission_status() -> VoiceInputPermissionStatus {
+#[cfg(all(debug_assertions, target_os = "macos"))]
+pub(crate) fn audit_dictation_context() -> Option<crate::pastebox::DictationContext> {
+    STATE.lock().ok()?.paste_context.clone()
+}
+
+#[cfg(all(debug_assertions, target_os = "macos"))]
+pub(crate) async fn audit_start_with_capture(
+    app: AppHandle,
+    context: crate::pastebox::DictationContext,
+) -> Result<VoiceInputStatus, String> {
+    start_dictation_with_capture(app, Ok(context)).await
+}
+
+pub async fn permission_status(app: &AppHandle) -> VoiceInputPermissionStatus {
     let microphone = crate::audio::default_input_device();
     let microphone_ok = microphone.is_ok();
     let microphone_message = microphone
         .map(|device| format!("可用：{}", device.name))
         .unwrap_or_else(|error| format!("不可用：{error}"));
-    let accessibility_ok = accessibility_trusted();
+    let permission = crate::pastebox::accessibility_status(app).await;
+    let accessibility_ok = permission.as_ref().copied().unwrap_or(false);
 
     VoiceInputPermissionStatus {
         platform: std::env::consts::OS.to_string(),
         microphone_ok,
         microphone_message,
         accessibility_ok,
-        accessibility_message: if accessibility_ok {
+        accessibility_message: if let Err(error) = permission {
+            error
+        } else if accessibility_ok {
             "Accessibility 权限已授权".to_string()
         } else if cfg!(target_os = "macos") {
             accessibility_permission_hint(cfg!(debug_assertions))
@@ -184,21 +211,24 @@ pub fn permission_status() -> VoiceInputPermissionStatus {
     }
 }
 
-pub fn request_accessibility_permission() -> VoiceInputPermissionStatus {
-    let _ = request_accessibility_trust_prompt();
-    permission_status()
-}
-
 pub(crate) fn accessibility_permission_hint(debug_build: bool) -> String {
     if debug_build {
-        "未授权 Accessibility；开发模式请点击“请求辅助功能授权”，在系统设置中允许当前运行项（通常是 target/debug/hit-vvc；如果 macOS 显示 Code 或 Terminal，则允许该项），然后重启 npm run tauri dev。无法自动粘贴时会保留到剪贴板".to_string()
+        "辅助功能服务尚未授权；开发模式请点击“请求辅助功能授权”，在系统设置中允许实际运行项（可能显示 Python、Code 或 Terminal），然后重启 npm run tauri dev。无法恢复位置时内容保留在粘贴箱".to_string()
     } else {
-        "未授权 Accessibility；请在系统设置 > 隐私与安全性 > 辅助功能中允许 H-VibeRec，然后重启应用。无法自动粘贴时会保留到剪贴板".to_string()
+        "辅助功能服务尚未授权；请在系统设置 > 隐私与安全性 > 辅助功能中允许 H-VibeRec，然后重启应用。无法恢复位置时内容保留在粘贴箱".to_string()
     }
 }
 
 pub async fn start_dictation(app: AppHandle) -> Result<VoiceInputStatus, String> {
-    let settings = crate::db::get_settings()?;
+    let capture = crate::pastebox::begin_dictation(&app);
+    start_dictation_with_capture(app, capture).await
+}
+
+async fn start_dictation_with_capture(
+    app: AppHandle,
+    capture: Result<crate::pastebox::DictationContext, String>,
+) -> Result<VoiceInputStatus, String> {
+    let settings = crate::db::get_runtime_settings()?;
     let hotkey_label = hotkey::display_hotkey_for_status(&settings.voice_input_hotkey);
     log::info!(
         "Voice input start requested: enabled={} hotkey={} refinement_mode={}",
@@ -221,23 +251,27 @@ pub async fn start_dictation(app: AppHandle) -> Result<VoiceInputStatus, String>
         );
         return Err("当前正在会议录音，语音输入法暂不可用".to_string());
     }
+    let paste_context = capture?;
     let started_at = Utc::now().to_rfc3339();
     {
         let mut state = STATE
             .lock()
             .map_err(|e| format!("Failed to lock voice input state: {e}"))?;
         if state.phase != VoiceInputPhase::Idle {
-            return Err("语音输入法正在处理上一段输入".to_string());
+            return Err("当前录音正在启动或结束，请稍候".to_string());
         }
         state.phase = VoiceInputPhase::Starting;
         state.hotkey_label = hotkey_label.clone();
         state.started_at = Some(started_at.clone());
+        state.paste_context = Some(paste_context.clone());
+        state.settings = Some(settings);
     }
+    // The capture task was launched at the entry point. Microphone readiness,
+    // recording controls and ASR must not wait for AX. This overlay cannot focus.
     emit_status(&app, "starting", "麦克风启动中，请稍候", None, None);
-
     let recorder = match recorder::ActiveShortRecorder::start().await {
         Ok(value) => {
-            log::info!("Voice input recorder started");
+            log::info!("Voice input recorder started: job={}", paste_context.id());
             value
         }
         Err(error) => {
@@ -247,7 +281,11 @@ pub async fn start_dictation(app: AppHandle) -> Result<VoiceInputStatus, String>
             return Err(error);
         }
     };
-    let listening_message = listening_status_message(&hotkey_label, false);
+    let listening_message = format!(
+        "{} · {}",
+        listening_status_message(&hotkey_label, false),
+        paste_context.target_hint()
+    );
     {
         let mut state = STATE
             .lock()
@@ -269,7 +307,11 @@ pub async fn start_dictation(app: AppHandle) -> Result<VoiceInputStatus, String>
         }
     };
     if enter_submit.is_some() {
-        let updated_listening_message = listening_status_message(&hotkey_label, true);
+        let updated_listening_message = format!(
+            "{} · {}",
+            listening_status_message(&hotkey_label, true),
+            paste_context.target_hint()
+        );
         let should_emit_update = if let Ok(mut state) = STATE.lock() {
             if state.phase == VoiceInputPhase::Listening
                 && state.started_at.as_deref() == Some(started_at.as_str())
@@ -287,84 +329,91 @@ pub async fn start_dictation(app: AppHandle) -> Result<VoiceInputStatus, String>
             emit_status(&app, "listening", &updated_listening_message, None, None);
         }
     }
+    let capture_app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let (_, target) = paste_context.clone().resolve().await;
+        // Serialize this update with stop/cancel/start. A late result may update
+        // only its own still-listening recording, never resurrect an old overlay.
+        // Run on the UI thread before taking STATE: window operations may otherwise
+        // wait for a main-thread shortcut callback that is also trying to read STATE.
+        let ui_app = capture_app.clone();
+        let _ = capture_app.run_on_main_thread(move || {
+            if let Ok(state) = STATE.lock() {
+                if state.phase == VoiceInputPhase::Listening
+                    && state.paste_context.as_ref().map(|context| context.id())
+                        == Some(paste_context.id())
+                {
+                    crate::pastebox::record_dictation_capture(
+                        target,
+                        paste_context.capture_error(),
+                    );
+                    emit_status(
+                        &ui_app,
+                        "listening",
+                        &status_message_for_state(&state),
+                        None,
+                        None,
+                    );
+                }
+            }
+        });
+    });
     Ok(status())
 }
 
-pub async fn stop_dictation(app: AppHandle) -> Result<VoiceInputDictationResult, String> {
-    log::info!("Voice input stop requested");
-    let stop_started = Instant::now();
-    let (recorder, enter_submit) = {
-        let mut state = STATE
-            .lock()
-            .map_err(|e| format!("Failed to lock voice input state: {e}"))?;
+pub async fn stop_dictation(app: AppHandle) -> Result<VoiceInputSubmission, String> {
+    let (recorder, enter_submit, context, settings) = {
+        let mut state = STATE.lock().map_err(|e| e.to_string())?;
         if state.phase != VoiceInputPhase::Listening {
-            return Err("语音输入法当前没有在听写".to_string());
+            return Err("语音输入法当前没有在听写".into());
         }
-        state.phase = VoiceInputPhase::Transcribing;
+        state.phase = VoiceInputPhase::Stopping;
         state.enter_submit_available = false;
-        (state.recorder.take(), state.enter_submit.take())
+        (
+            state.recorder.take(),
+            state.enter_submit.take(),
+            state.paste_context.clone(),
+            state.settings.take(),
+        )
     };
     drop(enter_submit);
-    let Some(recorder) = recorder else {
-        reset_to_idle();
-        return Err("语音输入法录音状态丢失".to_string());
-    };
-
-    emit_status(&app, "transcribing", "正在转写", None, None);
-    let recorder_stop_started = Instant::now();
-    let samples = match recorder.stop().await {
-        Ok(value) => {
-            log::info!(
-                "Voice input recorder stopped: samples={} duration_ms={} recorder_stop_ms={}",
-                value.len(),
-                audio_duration_ms(value.len()),
-                recorder_stop_started.elapsed().as_millis()
-            );
-            value
+    emit_status(&app, "stopping", "正在保存录音", None, None);
+    // Only stop/drain the microphone and spool audio here. No AX join, model
+    // preparation, network call, or insertion is allowed on this path.
+    let submitted = async {
+        let recorder = recorder.ok_or("语音输入法录音状态丢失")?;
+        let samples = recorder.stop().await?;
+        if samples.len() < MIN_AUDIO_SAMPLES {
+            return Err(format!(
+                "语音太短（{}ms），请至少录制 {}ms",
+                audio_duration_ms(samples.len()),
+                audio_duration_ms(MIN_AUDIO_SAMPLES)
+            ));
         }
-        Err(error) => {
-            log::error!(
-                "Voice input recorder failed to stop after {} ms: {error}",
-                recorder_stop_started.elapsed().as_millis()
-            );
-            reset_to_idle();
-            emit_status(&app, "failed", &error, None, None);
-            return Err(error);
-        }
-    };
-    if samples.len() < MIN_AUDIO_SAMPLES {
-        let error = format!(
-            "语音太短（{}ms），请至少录制 {}ms",
-            audio_duration_ms(samples.len()),
-            audio_duration_ms(MIN_AUDIO_SAMPLES)
-        );
-        log::warn!(
-            "Voice input rejected short audio: samples={} min_samples={}",
-            samples.len(),
-            MIN_AUDIO_SAMPLES
-        );
-        reset_to_idle();
-        emit_status(&app, "failed", &error, None, None);
-        return Err(error);
+        let context = context.ok_or("本次录音任务信息丢失")?;
+        let settings = settings.ok_or("本次录音设置丢失")?;
+        jobs::save(&context, settings, samples).await
     }
-
-    let result = process_samples(app.clone(), samples).await;
+    .await;
     reset_to_idle();
-    match result {
-        Ok(result) => {
-            log::info!(
-                "Voice input completed: inserted={} strategy={} raw_chars={} final_chars={} stop_total_ms={}",
-                result.inserted,
-                result.insertion_strategy,
-                text::count_inserted_chars(&result.raw_text),
-                text::count_inserted_chars(&result.text),
-                stop_started.elapsed().as_millis()
-            );
-            Ok(result)
+    match submitted {
+        Ok(job) => {
+            let item = crate::db::get_paste_item(&job.id)?;
+            let submission = VoiceInputSubmission {
+                job_id: job.id.clone(),
+                seq: item.seq,
+                phase: "queued".into(),
+            };
+            show_navigation_feedback(&app, &format!("#{} 已提交，可继续录音", item.seq));
+            jobs::submit(app.clone(), job)?;
+            // UI/tray refresh must not delay the stop acknowledgement.
+            tauri::async_runtime::spawn(async move {
+                crate::pastebox::changed(&app).await;
+            });
+            Ok(submission)
         }
         Err(error) => {
-            log::error!("Voice input failed: {error}");
-            emit_status(&app, "failed", &error, None, None);
+            show_navigation_feedback(&app, &error);
             Err(error)
         }
     }
@@ -422,82 +471,70 @@ pub async fn toggle_dictation(app: AppHandle) -> Result<VoiceInputStatus, String
             let _ = stop_dictation(app).await?;
             Ok(status())
         }
-        VoiceInputPhase::Starting => Ok(status()),
+        VoiceInputPhase::Starting | VoiceInputPhase::Stopping | VoiceInputPhase::Cancelled => {
+            Ok(status())
+        }
         _ => start_dictation(app).await,
     }
 }
 
-async fn process_samples(
-    app: AppHandle,
-    samples: Vec<f32>,
-) -> Result<VoiceInputDictationResult, String> {
-    let total_started = Instant::now();
-    let settings = crate::db::get_settings()?;
-    let temp_dir = crate::storage::get_temp_dir()?.join("voice-input");
-    let id = Uuid::new_v4().to_string();
-    let audio_path = temp_dir.join(format!("{id}.wav"));
-    let normalized_path = temp_dir.join(format!("{id}.normalized.wav"));
-    log::info!(
-        "Voice input processing audio: samples={} duration_ms={} wav_path={}",
-        samples.len(),
-        audio_duration_ms(samples.len()),
-        audio_path.display()
-    );
-    let write_started = Instant::now();
-    if let Err(error) = recorder::write_wav(&audio_path, &samples) {
-        log::error!(
-            "Voice input WAV write failed: id={} elapsed_ms={} error={}",
-            id,
-            write_started.elapsed().as_millis(),
-            error
-        );
-        return Err(error);
-    }
-    let write_wav_ms = write_started.elapsed().as_millis();
-    log::info!(
-        "Voice input WAV write completed: id={} elapsed_ms={} path={}",
-        id,
-        write_wav_ms,
-        audio_path.display()
-    );
-
-    let asr_started = Instant::now();
-    let raw_text = transcribe_short_audio(&app, &settings, &audio_path, &normalized_path).await?;
-    let asr_ms = asr_started.elapsed().as_millis();
-    log::info!(
-        "Voice input ASR text received: id={} elapsed_ms={} {}",
-        id,
-        asr_ms,
-        text::debug_text_summary("raw", &raw_text)
-    );
-    let mut polish_ms = 0;
-    let polish_outcome = if settings.voice_input_refinement_mode == "ai_polish" {
-        set_phase(VoiceInputPhase::Refining);
-        emit_status(&app, "refining", "正在润色", None, None);
-        log::info!("Voice input AI polish started");
-        let api_key = crate::db::get_llm_api_key()?;
-        let started = Instant::now();
-        let outcome = voice_input_text_after_polish(
-            &raw_text,
-            crate::llm::polish_voice_input_text(&raw_text, &settings, &api_key).await,
-        );
-        polish_ms = started.elapsed().as_millis();
-        if outcome.fallback {
-            log::warn!(
-                "Voice input AI polish failed after {} ms, using raw transcript: {}",
-                polish_ms,
-                outcome.error.as_deref().unwrap_or("unknown error")
-            );
-            emit_status(&app, "refining", "润色失败，已使用原始转写", None, None);
-        } else {
-            log::info!(
-                "Voice input AI polish completed after {} ms: {} {}",
-                polish_ms,
-                text::debug_text_summary("raw", &raw_text),
-                text::debug_text_summary("polished", &outcome.text)
-            );
+async fn process_samples(app: &AppHandle, job: &jobs::DictationJob) -> Result<String, String> {
+    let (audio_path, normalized_path) = jobs::paths(&job.id)?;
+    #[cfg(all(debug_assertions, target_os = "macos"))]
+    let injected = jobs::audit_response(&job.id, "asr").await;
+    #[cfg(not(all(debug_assertions, target_os = "macos")))]
+    let injected: Option<Result<String, String>> = None;
+    let raw = match injected {
+        Some(result) => result?,
+        None => {
+            transcribe_short_audio(app, &job.settings, &job.id, &audio_path, &normalized_path)
+                .await?
         }
-        outcome
+    };
+    crate::db::finish_dictation_transcription(
+        &job.id,
+        &raw,
+        job.settings.voice_input_refinement_mode == "ai_polish",
+    )?;
+    // Once raw text is durable, the audio is no longer needed for recovery.
+    let _ = std::fs::remove_file(audio_path);
+    let _ = std::fs::remove_file(normalized_path);
+    crate::pastebox::changed(app).await;
+    Ok(raw)
+}
+
+async fn finish_samples(
+    app: AppHandle,
+    job: jobs::DictationJob,
+    raw_text: String,
+) -> Result<(), String> {
+    let started = Instant::now();
+    let polish = if job.settings.voice_input_refinement_mode == "ai_polish" {
+        let _permit = jobs::POLISH_SLOTS
+            .acquire()
+            .await
+            .map_err(|e| e.to_string())?;
+        #[cfg(all(debug_assertions, target_os = "macos"))]
+        let injected = jobs::audit_response(&job.id, "polish").await;
+        #[cfg(not(all(debug_assertions, target_os = "macos")))]
+        let injected: Option<Result<String, String>> = None;
+        let result = if let Some(result) = injected {
+            result
+        } else {
+            match crate::db::get_llm_api_key() {
+                Ok(api_key) => match tokio::time::timeout(
+                    Duration::from_secs(90),
+                    crate::llm::polish_voice_input_text(&raw_text, &job.settings, &api_key),
+                )
+                .await
+                {
+                    Ok(result) => result,
+                    Err(_) => Err("润色超时，已使用原始转写".into()),
+                },
+                Err(error) => Err(error),
+            }
+        };
+        voice_input_text_after_polish(&raw_text, result)
     } else {
         VoiceInputPolishOutcome {
             text: raw_text.clone(),
@@ -505,77 +542,21 @@ async fn process_samples(
             error: None,
         }
     };
-    let text = polish_outcome.text.clone();
-
-    set_phase(VoiceInputPhase::Inserting);
-    emit_status(&app, "inserting", "正在写入", None, None);
-    log::info!(
-        "Voice input insertion started: {}",
-        text::debug_text_summary("final", &text)
-    );
-    let insertion_started = Instant::now();
-    let insertion = insertion::insert_text(&text)?;
-    let insertion_ms = insertion_started.elapsed().as_millis();
-    log::info!(
-        "Voice input insertion finished: inserted={} strategy={} clipboard_left_text={} elapsed_ms={} message={}",
-        insertion.inserted,
-        insertion.strategy,
-        insertion.clipboard_left_text,
-        insertion_ms,
-        insertion.message
-    );
-    let stats_started = Instant::now();
-    let stats = if insertion.inserted {
-        let stats = crate::db::record_voice_input_success(&text)?;
-        emit_status(
-            &app,
-            "inserted",
-            &insertion.message,
-            Some(text::count_inserted_chars(&text)),
-            Some(insertion.strategy.clone()),
-        );
-        stats
-    } else {
-        emit_status(
-            &app,
-            "copied",
-            &insertion.message,
-            Some(text::count_inserted_chars(&text)),
-            Some(insertion.strategy.clone()),
-        );
-        crate::db::get_voice_input_stats()?
-    };
-    let stats_ms = stats_started.elapsed().as_millis();
-
-    let cleanup_started = Instant::now();
-    let _ = std::fs::remove_file(&audio_path);
-    let _ = std::fs::remove_file(&normalized_path);
-    let cleanup_ms = cleanup_started.elapsed().as_millis();
-
-    log::info!(
-        "Voice input timing summary: id={} audio_duration_ms={} write_wav_ms={} asr_ms={} polish_ms={} insertion_ms={} stats_ms={} cleanup_ms={} total_ms={} polish_fallback={}",
-        id,
-        audio_duration_ms(samples.len()),
-        write_wav_ms,
-        asr_ms,
-        polish_ms,
-        insertion_ms,
-        stats_ms,
-        cleanup_ms,
-        total_started.elapsed().as_millis(),
-        polish_outcome.fallback
-    );
-
-    Ok(VoiceInputDictationResult {
-        raw_text,
-        text,
-        inserted: insertion.inserted,
-        insertion_strategy: insertion.strategy,
-        message: insertion.message,
-        polish_fallback: polish_outcome.fallback,
-        polish_error: polish_outcome.error,
-        stats,
-    })
+    crate::db::finish_paste_refinement(&job.id, &polish.text, polish.error.as_deref())?;
+    // The capture remains specific to this UUID and cannot replace another
+    // recording's global target hint. Never sample the current foreground here.
+    if let Some(context) = job.context {
+        let (_, target) = context.resolve().await;
+        crate::db::set_dictation_target(&job.id, target.as_ref())?;
+    }
+    crate::pastebox::changed(&app).await;
+    let item = crate::pastebox::process_ready(&app, &job.id).await?;
+    log::info!("Dictation background completed: job={} seq={} delivery={} polish_fallback={} elapsed_ms={}",
+        job.id, item.seq, item.delivery_status, polish.fallback, started.elapsed().as_millis());
+    let _ = app.emit("voice-input-job-completed", &item);
+    // Background completion only updates the outbox/notification, never the
+    // recorder state or a newer recording's overlay.
+    Ok(())
 }
 
 pub(crate) fn voice_input_text_after_polish(
@@ -583,15 +564,15 @@ pub(crate) fn voice_input_text_after_polish(
     polish_result: Result<String, String>,
 ) -> VoiceInputPolishOutcome {
     match polish_result {
-        Ok(text) => VoiceInputPolishOutcome {
+        Ok(text) if !text.trim().is_empty() => VoiceInputPolishOutcome {
             text,
             fallback: false,
             error: None,
         },
-        Err(error) => VoiceInputPolishOutcome {
+        result => VoiceInputPolishOutcome {
             text: raw_text.to_string(),
             fallback: true,
-            error: Some(error),
+            error: Some(result.err().unwrap_or_else(|| "润色返回空内容".into())),
         },
     }
 }
@@ -630,18 +611,12 @@ pub(crate) fn build_dictation_transcribe_request(
 async fn transcribe_short_audio(
     app: &AppHandle,
     settings: &AppSettings,
+    job_id: &str,
     audio_path: &std::path::Path,
     normalized_path: &std::path::Path,
 ) -> Result<String, String> {
     let total_started = Instant::now();
-    set_phase(VoiceInputPhase::PreparingModel);
-    emit_status(
-        app,
-        "preparing_model",
-        "正在准备 ASR 模型，首次使用可能需要下载",
-        None,
-        None,
-    );
+    jobs::stage(app, job_id, "preparing_model").await?;
     log::info!(
         "Voice input ASR model preparation started: repo={} source={} configured_path={}",
         settings.asr_model_repo,
@@ -693,8 +668,7 @@ async fn transcribe_short_audio(
         runtime.script_path.display(),
         runtime_started.elapsed().as_millis()
     );
-    set_phase(VoiceInputPhase::Transcribing);
-    emit_status(app, "transcribing", "正在转写", None, None);
+    jobs::stage(app, job_id, "transcribing").await?;
     let request_id = format!("voice-input-{}", Uuid::new_v4());
     let request = build_dictation_transcribe_request(
         &request_id,
@@ -715,41 +689,14 @@ async fn transcribe_short_audio(
         VOICE_INPUT_ASR_TIMEOUT_SECS
     );
     let sidecar_started = Instant::now();
-    let mut sidecar_future = Box::pin(crate::asr_worker::transcribe(app, request, settings));
-    let response = tokio::select! {
-        result = &mut sidecar_future => {
-            match result {
-                Ok(value) => {
-                    log::info!(
-                        "Voice input ASR sidecar completed: id={} elapsed_ms={}",
-                        request_id,
-                        sidecar_started.elapsed().as_millis()
-                    );
-                    value
-                }
-                Err(error) => {
-                    log::error!(
-                        "Voice input ASR sidecar failed: id={} elapsed_ms={} error={}",
-                        request_id,
-                        sidecar_started.elapsed().as_millis(),
-                        error
-                    );
-                    return Err(error);
-                }
-            }
-        }
-        _ = tokio::time::sleep(Duration::from_secs(VOICE_INPUT_ASR_TIMEOUT_SECS)) => {
-            log::error!(
-                "Voice input ASR sidecar timed out: id={} elapsed_ms={}",
-                request_id,
-                sidecar_started.elapsed().as_millis()
-            );
-            return Err(format!(
-                "语音输入 ASR 超时（{} 秒），请查看 npm run tauri dev 终端日志",
-                VOICE_INPUT_ASR_TIMEOUT_SECS
-            ));
-        }
-    };
+    // Queue waiting is unbounded; the worker times only the actual request and
+    // resets its process on timeout, preventing a late response crossing jobs.
+    let response = crate::asr_worker::transcribe(app, request, settings).await?;
+    log::info!(
+        "Voice input ASR completed: job={} elapsed_ms={}",
+        job_id,
+        sidecar_started.elapsed().as_millis()
+    );
     let sidecar_total_asr_ms = response
         .pointer("/result/timing/total_asr_ms")
         .and_then(|value| value.as_i64());
@@ -799,7 +746,7 @@ fn run_hotkey_registration(app: AppHandle, rx: mpsc::Receiver<HotkeyCommand>) {
     while let Ok(command) = rx.recv() {
         match command {
             HotkeyCommand::Refresh(reply) => {
-                let refresh_result = match crate::db::get_settings() {
+                let refresh_result = match crate::db::get_runtime_settings() {
                     Ok(settings) => apply_hotkey_settings(
                         settings.voice_input_enabled,
                         &settings.voice_input_hotkey,
@@ -825,10 +772,17 @@ fn run_hotkey_registration(app: AppHandle, rx: mpsc::Receiver<HotkeyCommand>) {
                 );
                 let _ = reply.send(result);
             }
-            HotkeyCommand::Triggered => {
+            HotkeyCommand::Triggered(capture) => {
                 let app_for_task = app.clone();
                 tauri::async_runtime::spawn(async move {
-                    if let Err(error) = toggle_dictation(app_for_task.clone()).await {
+                    let result = if let Some(capture) = capture {
+                        start_dictation_with_capture(app_for_task.clone(), capture).await
+                    } else if is_listening_phase() {
+                        stop_dictation(app_for_task.clone()).await.map(|_| status())
+                    } else {
+                        Ok(status())
+                    };
+                    if let Err(error) = result {
                         emit_status(&app_for_task, "failed", &error, None, None);
                     }
                 });
@@ -873,7 +827,7 @@ fn apply_hotkey_settings(
     active_registration: &mut Option<platform_hotkey::RegisteredHotkey>,
     registered_signature: &mut Option<(u32, u32)>,
 ) -> Result<(), String> {
-    if !enabled {
+    if !enabled || SHORTCUT_CAPTURE_ACTIVE.load(std::sync::atomic::Ordering::SeqCst) {
         *active_registration = None;
         *registered_signature = None;
         log::info!("Voice input global hotkey is disabled");
@@ -924,7 +878,17 @@ fn send_hotkey_command(command: HotkeyCommand) -> Result<(), String> {
 }
 
 fn notify_hotkey_triggered() {
-    let _ = send_hotkey_command(HotkeyCommand::Triggered);
+    if SHORTCUT_CAPTURE_ACTIVE.load(std::sync::atomic::Ordering::SeqCst) {
+        return;
+    }
+    // Launch capture before enqueueing recorder work. This command owns the
+    // result, so scheduling delays cannot retarget it to the later foreground.
+    let capture = if is_idle_phase() {
+        Some(crate::pastebox::begin_dictation_from_hotkey())
+    } else {
+        None
+    };
+    let _ = send_hotkey_command(HotkeyCommand::Triggered(capture));
 }
 
 fn notify_enter_pressed() {
@@ -964,6 +928,10 @@ fn reset_to_idle() {
         state.enter_submit_available = false;
         state.hotkey_label.clear();
         state.started_at = None;
+        if let Some(context) = state.paste_context.take() {
+            context.release_recording();
+        }
+        state.settings = None;
         state.enter_submit.take()
     } else {
         None
@@ -971,13 +939,27 @@ fn reset_to_idle() {
     drop(enter_submit);
 }
 
-fn set_phase(phase: VoiceInputPhase) {
-    if let Ok(mut state) = STATE.lock() {
-        state.phase = phase;
-    }
+pub(crate) fn show_navigation_feedback(app: &AppHandle, message: &str) {
+    let ui_app = app.clone();
+    let message = message.to_string();
+    // Check on the UI thread at publication time: a new shortcut may have
+    // started another recording while this feedback was waiting to be shown.
+    let _ = app.run_on_main_thread(move || {
+        if let Ok(state) = STATE.lock() {
+            if state.phase == VoiceInputPhase::Idle {
+                emit_status(
+                    &ui_app,
+                    "queued",
+                    &message,
+                    None,
+                    Some("background_feedback".into()),
+                );
+            }
+        }
+    });
 }
 
-fn emit_status(
+pub(crate) fn emit_status(
     app: &AppHandle,
     phase: &str,
     message: &str,
@@ -1013,12 +995,14 @@ fn status_message_for_state(state: &VoiceInputState) -> String {
         VoiceInputPhase::Idle => "待命".to_string(),
         VoiceInputPhase::Starting => "麦克风启动中，请稍候".to_string(),
         VoiceInputPhase::Listening => {
-            listening_status_message(&state.hotkey_label, state.enter_submit_available)
+            let message =
+                listening_status_message(&state.hotkey_label, state.enter_submit_available);
+            match &state.paste_context {
+                Some(context) => format!("{message} · {}", context.target_hint()),
+                None => message,
+            }
         }
-        VoiceInputPhase::PreparingModel => "正在准备 ASR 模型".to_string(),
-        VoiceInputPhase::Transcribing => "正在转写".to_string(),
-        VoiceInputPhase::Refining => "正在润色".to_string(),
-        VoiceInputPhase::Inserting => "正在写入".to_string(),
+        VoiceInputPhase::Stopping => "正在保存录音".to_string(),
         VoiceInputPhase::Cancelled => "已取消语音输入".to_string(),
     }
 }
@@ -1033,72 +1017,4 @@ pub(crate) fn listening_status_message(_hotkey_label: &str, enter_available: boo
 
 fn audio_duration_ms(samples: usize) -> u64 {
     (samples as u64).saturating_mul(1_000) / crate::audio::TARGET_SAMPLE_RATE as u64
-}
-
-#[cfg(target_os = "macos")]
-fn accessibility_trusted() -> bool {
-    mod ffi {
-        use std::ffi::c_void;
-
-        #[link(name = "ApplicationServices", kind = "framework")]
-        extern "C" {
-            pub fn AXIsProcessTrustedWithOptions(options: *const c_void) -> bool;
-        }
-    }
-    unsafe { ffi::AXIsProcessTrustedWithOptions(std::ptr::null()) }
-}
-
-#[cfg(not(target_os = "macos"))]
-fn accessibility_trusted() -> bool {
-    false
-}
-
-#[cfg(target_os = "macos")]
-fn request_accessibility_trust_prompt() -> bool {
-    mod ffi {
-        use std::ffi::c_void;
-
-        #[link(name = "ApplicationServices", kind = "framework")]
-        extern "C" {
-            pub static kAXTrustedCheckOptionPrompt: *const c_void;
-            pub fn AXIsProcessTrustedWithOptions(options: *const c_void) -> bool;
-        }
-
-        #[link(name = "CoreFoundation", kind = "framework")]
-        extern "C" {
-            pub static kCFBooleanTrue: *const c_void;
-            pub fn CFDictionaryCreate(
-                allocator: *const c_void,
-                keys: *const *const c_void,
-                values: *const *const c_void,
-                num_values: isize,
-                key_callbacks: *const c_void,
-                value_callbacks: *const c_void,
-            ) -> *const c_void;
-            pub fn CFRelease(cf: *const c_void);
-        }
-    }
-
-    unsafe {
-        let key = ffi::kAXTrustedCheckOptionPrompt;
-        let value = ffi::kCFBooleanTrue;
-        let options = ffi::CFDictionaryCreate(
-            std::ptr::null(),
-            &key,
-            &value,
-            1,
-            std::ptr::null(),
-            std::ptr::null(),
-        );
-        let trusted = ffi::AXIsProcessTrustedWithOptions(options);
-        if !options.is_null() {
-            ffi::CFRelease(options);
-        }
-        trusted
-    }
-}
-
-#[cfg(not(target_os = "macos"))]
-fn request_accessibility_trust_prompt() -> bool {
-    false
 }

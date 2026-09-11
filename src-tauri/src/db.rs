@@ -7,6 +7,7 @@ use crate::storage::get_app_data_dir;
 
 mod assistant;
 mod model_status;
+mod pastebox;
 mod queue;
 mod recordings;
 mod schema;
@@ -16,6 +17,7 @@ mod voice_input_stats;
 
 pub use assistant::*;
 pub use model_status::*;
+pub use pastebox::*;
 pub use queue::*;
 pub use recordings::*;
 pub use schema::init_db;

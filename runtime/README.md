@@ -6,14 +6,20 @@ It must contain everything required to run the FunASR workflow sidecar except mo
 
 - `bin/python` on macOS, or `python.exe` on Windows
 - Python packages from `sidecars/funasr_nano_mlx/requirements.txt`
+- On macOS, pinned PyObjC packages from `sidecars/pastebox_ax/requirements.txt` for accessibility target recovery
 - `bin/ffmpeg` on macOS, or `bin/ffmpeg.exe` on Windows
 
 The bundle must also include:
 
 - `sidecars/funasr_nano_mlx/main.py`
 - `sidecars/funasr_nano_mlx/requirements.txt`
+- `sidecars/pastebox_ax/{main,macos,service,anchors}.py` and its `requirements.txt`
 
 Do not commit generated runtime files. The app intentionally does not fall back to system Python or system ffmpeg.
+
+The pastebox uses a persistent, separate process in this same Python runtime. It does not load ASR models. `runtime:ensure` installs its macOS dependencies and verifies a real PyObjC AX range round trip; `bundle:verify-runtime` repeats that check using the packaged Python. This check does not grant Accessibility permission or prove cross-application compatibility. The pastebox checks permission from the process that actually calls AX, and offers an explicit permission button.
+
+For developing the accessibility module independently of the ASR runtime, a debug-only `HVR_AX_PYTHON=/absolute/path/to/python3` override is available. Install `sidecars/pastebox_ax/requirements.txt` in that isolated interpreter first. Release builds always use bundled Python.
 
 Model weights are the only runtime assets downloaded after installation. They are prepared from the settings page button. The ASR repo is downloaded to the app models directory, and VAD/CAM++/punctuation models are stored beside it under `.voice_vibe_aux` or under the shared auxiliary directory when a custom ASR model path is configured.
 

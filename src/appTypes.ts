@@ -204,6 +204,12 @@ export interface VoiceInputWarmupStatusEvent {
   sidecar_infer_ms?: number | null;
 }
 
+export interface VoiceInputSubmission {
+  job_id: string;
+  seq: number;
+  phase: 'queued';
+}
+
 export interface VoiceInputDictationResult {
   raw_text: string;
   text: string;

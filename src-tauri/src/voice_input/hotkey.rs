@@ -95,7 +95,7 @@ pub fn parse_hotkey(value: &str) -> Result<ParsedHotkey, String> {
 }
 
 impl ParsedHotkey {
-    fn display_label(&self) -> String {
+    pub(crate) fn display_label(&self) -> String {
         let mut label = String::new();
         if self.command {
             label.push('⌘');

@@ -220,6 +220,13 @@ pub struct VoiceInputInsertionResult {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct VoiceInputSubmission {
+    pub job_id: String,
+    pub seq: i64,
+    pub phase: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct VoiceInputDictationResult {
     pub raw_text: String,
     pub text: String,

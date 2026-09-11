@@ -57,6 +57,8 @@ async function main() {
     requirementsPath,
     assistantRequirementsPath,
     runtimePythonLibPath(runtimeRoot),
+    ...['main.py', 'macos.py', 'window_identity.py', 'lifecycle.py', 'service.py', 'anchors.py', 'requirements.txt'].map(name =>
+      path.join(resourcesDir, 'sidecars', 'pastebox_ax', name)),
   ];
   for (const requiredPath of requiredPaths) {
     if (!existsSync(requiredPath)) {
@@ -66,6 +68,7 @@ async function main() {
 
   if (process.platform === 'darwin') {
     await run('codesign', ['--verify', '--deep', '--strict', '--verbose=2', bundle.root], repoRoot);
+    await run(pythonPath, ['-B', '-s', path.join(resourcesDir, 'sidecars', 'pastebox_ax', 'main.py'), '--check'], repoRoot);
   }
 
   const staleQwenSidecar = path.join(resourcesDir, 'sidecars', 'qwen3asr');
@@ -81,6 +84,7 @@ async function main() {
   await run(
     pythonPath,
     [
+      '-B',
       '-c',
       [
         'import importlib.metadata as m',
@@ -93,6 +97,11 @@ async function main() {
     ],
     repoRoot,
   );
+
+  if (process.platform === 'darwin') {
+    // Launch checks must not create bytecode or otherwise alter the signed resources.
+    await run('codesign', ['--verify', '--deep', '--strict', '--verbose=2', bundle.root], repoRoot);
+  }
 
   console.log(`[bundle-runtime] verified: ${bundle.root}`);
 }

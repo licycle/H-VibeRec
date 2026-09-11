@@ -213,6 +213,7 @@ pub fn init_db() -> Result<(), String> {
     )
     .map_err(|e| format!("Failed to migrate SQLite: {e}"))?;
 
+    super::pastebox::migrate_pastebox(&conn)?;
     seed_templates(&conn)?;
     seed_assistant_prompt_templates(&conn)?;
     seed_default_settings(&conn)?;

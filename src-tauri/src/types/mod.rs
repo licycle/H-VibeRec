@@ -1,4 +1,6 @@
 pub mod models;
+mod pastebox;
+pub use pastebox::*;
 
 // Re-export all types
 pub use models::{
@@ -8,6 +10,6 @@ pub use models::{
     RecordingFile, RecordingInfo, RuntimeDependencyStatus, SaveSettingsRequest, SummaryJobResult,
     SummaryRecord, SummaryTemplate, TranscriptRecord, TranscriptionJobResult,
     VoiceInputDictationResult, VoiceInputInsertionResult, VoiceInputPermissionStatus,
-    VoiceInputStats, VoiceInputStatus, VoiceInputStatusEvent, VoiceInputWarmupStatusEvent,
-    WorkspaceSummaryResult, WorkspaceTextDocument,
+    VoiceInputStats, VoiceInputStatus, VoiceInputStatusEvent, VoiceInputSubmission,
+    VoiceInputWarmupStatusEvent, WorkspaceSummaryResult, WorkspaceTextDocument,
 };

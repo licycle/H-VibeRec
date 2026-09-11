@@ -156,6 +156,7 @@ async fn run_python_sidecar_with_cancel(
     let mut command = tokio::process::Command::new(&runtime.python_path);
     command
         .env("VOICE_VIBE_ASR_RUNTIME", &runtime.root)
+        .env("PYTHONDONTWRITEBYTECODE", "1")
         .env("PATH", sidecar_path)
         .arg(&script_path)
         .stdin(Stdio::piped())
@@ -352,6 +353,7 @@ where
     let mut command = tokio::process::Command::new(&runtime.python_path);
     command
         .env("VOICE_VIBE_ASR_RUNTIME", &runtime.root)
+        .env("PYTHONDONTWRITEBYTECODE", "1")
         .env("PATH", sidecar_path)
         .arg(&script_path)
         .stdin(Stdio::piped())

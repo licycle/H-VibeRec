@@ -76,6 +76,9 @@ async function checkTauriResources() {
   }
 
   expectResource(resources, '../runtime', 'runtime');
+  for (const name of ['main.py', 'macos.py', 'window_identity.py', 'lifecycle.py', 'service.py', 'anchors.py', 'requirements.txt']) {
+    expectResource(resources, `../sidecars/pastebox_ax/${name}`, `sidecars/pastebox_ax/${name}`);
+  }
   expectResource(
     resources,
     '../sidecars/funasr_nano_mlx/main.py',

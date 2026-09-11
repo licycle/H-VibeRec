@@ -20,6 +20,7 @@ import RightSidebar from './components/RightSidebar';
 import SettingsModal from './components/SettingsModal';
 import EditorCenter from './components/EditorCenter';
 import VoiceInputOverlay from './components/VoiceInputOverlay';
+import PasteboxPanel from './components/PasteboxPanel';
 
 const RIGHT_SIDEBAR_WIDTH_KEY = 'layout:right-sidebar-width';
 const DEFAULT_RIGHT_SIDEBAR_WIDTH = 360;
@@ -42,7 +43,7 @@ function currentWindowLabel() {
   try {
     return getCurrentWindow().label;
   } catch {
-    return 'main';
+    return new URLSearchParams(window.location.search).has('pastebox') ? 'pastebox' : 'main';
   }
 }
 
@@ -355,7 +356,8 @@ function warmupBannerIcon(phase: string) {
 }
 
 function App() {
-  const isOverlayWindow = currentWindowLabel() === VOICE_INPUT_OVERLAY_WINDOW_LABEL;
+    const isOverlayWindow = currentWindowLabel() === VOICE_INPUT_OVERLAY_WINDOW_LABEL;
+    const isPasteboxWindow = currentWindowLabel() === 'pastebox';
 
   useEffect(() => {
     document.documentElement.classList.toggle('voice-input-overlay-window', isOverlayWindow);
@@ -365,6 +367,17 @@ function App() {
       document.body.classList.remove('voice-input-overlay-window');
     };
   }, [isOverlayWindow]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('pastebox-window', isPasteboxWindow);
+    document.body.classList.toggle('pastebox-window', isPasteboxWindow);
+    return () => {
+      document.documentElement.classList.remove('pastebox-window');
+      document.body.classList.remove('pastebox-window');
+    };
+  }, [isPasteboxWindow]);
+
+  if (isPasteboxWindow) return <PasteboxPanel />;
 
   if (isOverlayWindow) {
     return <VoiceInputOverlay standalone />;

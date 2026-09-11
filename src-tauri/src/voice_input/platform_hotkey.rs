@@ -5,7 +5,7 @@ mod macos {
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::{mpsc, Arc};
     use std::thread::{self, JoinHandle};
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     use crate::voice_input::hotkey::{
         ParsedHotkey, CARBON_CMD_KEY, CARBON_CONTROL_KEY, CARBON_OPTION_KEY, CARBON_SHIFT_KEY,
@@ -42,6 +42,9 @@ mod macos {
     const K_CG_EVENT_TAP_OPTION_LISTEN_ONLY: u32 = 1;
     const K_CG_EVENT_KEY_DOWN: CGEventType = 10;
     const K_CG_EVENT_FLAGS_CHANGED: CGEventType = 12;
+    const K_CG_EVENT_TAP_DISABLED_BY_TIMEOUT: CGEventType = 0xFFFF_FFFE;
+    const K_CG_EVENT_TAP_DISABLED_BY_USER_INPUT: CGEventType = 0xFFFF_FFFF;
+    const K_CG_EVENT_SOURCE_STATE_COMBINED_SESSION: i32 = 0;
     const K_CG_KEYBOARD_EVENT_KEYCODE: u32 = 9;
     const K_CG_EVENT_FLAG_MASK_SHIFT: CGEventFlags = 0x0002_0000;
     const K_CG_EVENT_FLAG_MASK_CONTROL: CGEventFlags = 0x0004_0000;
@@ -80,6 +83,15 @@ mod macos {
             hot_key_ref: *mut EventHotKeyRef,
         ) -> OSStatus;
         fn UnregisterEventHotKey(hot_key_ref: EventHotKeyRef) -> OSStatus;
+        fn GetEventParameter(
+            event: EventRef,
+            name: u32,
+            desired_type: u32,
+            actual_type: *mut u32,
+            size: u32,
+            actual_size: *mut u32,
+            data: *mut c_void,
+        ) -> OSStatus;
     }
 
     #[link(name = "ApplicationServices", kind = "framework")]
@@ -95,6 +107,8 @@ mod macos {
         fn CGEventGetFlags(event: CGEventRef) -> CGEventFlags;
         fn CGEventGetIntegerValueField(event: CGEventRef, field: u32) -> i64;
         fn CGEventTapEnable(tap: CFMachPortRef, enable: bool);
+        fn CGEventTapIsEnabled(tap: CFMachPortRef) -> bool;
+        fn CGEventSourceFlagsState(state_id: i32) -> CGEventFlags;
     }
 
     #[link(name = "CoreFoundation", kind = "framework")]
@@ -265,9 +279,27 @@ mod macos {
 
     unsafe extern "C" fn hotkey_handler(
         _next_handler: EventHandlerCallRef,
-        _event: EventRef,
+        event: EventRef,
         _user_data: *mut c_void,
     ) -> OSStatus {
+        let mut key = EventHotKeyID {
+            signature: 0,
+            id: 0,
+        };
+        if GetEventParameter(
+            event,
+            u32::from_be_bytes(*b"----"),
+            u32::from_be_bytes(*b"hkid"),
+            ptr::null_mut(),
+            std::mem::size_of::<EventHotKeyID>() as u32,
+            ptr::null_mut(),
+            &mut key as *mut _ as *mut c_void,
+        ) != NO_ERR
+            || key.signature != VOICE_INPUT_HOTKEY_SIGNATURE
+            || key.id != VOICE_INPUT_HOTKEY_ID
+        {
+            return -9874; // eventNotHandledErr: let the pastebox's Carbon handler receive its keys.
+        }
         super::super::notify_hotkey_triggered();
         NO_ERR
     }
@@ -306,6 +338,33 @@ mod macos {
     struct ModifierTapContext {
         target_modifiers: u32,
         armed: AtomicBool,
+        tap: CFMachPortRef,
+    }
+
+    impl ModifierTapContext {
+        fn new(target_modifiers: u32, initial_flags: CGEventFlags) -> Self {
+            Self {
+                target_modifiers,
+                // Editing a shortcut may finish with some modifiers still held.
+                armed: AtomicBool::new(
+                    carbon_modifiers_from_event_flags(initial_flags) & target_modifiers == 0,
+                ),
+                tap: ptr::null_mut(),
+            }
+        }
+
+        fn update(&self, flags: CGEventFlags) -> bool {
+            let current = carbon_modifiers_from_event_flags(flags);
+            let released = current & self.target_modifiers == 0;
+            if released {
+                self.armed.store(true, Ordering::SeqCst);
+                false
+            } else if current == self.target_modifiers && self.armed.swap(false, Ordering::SeqCst) {
+                true
+            } else {
+                false
+            }
+        }
     }
 
     fn run_modifier_only_hotkey_listener(
@@ -313,10 +372,9 @@ mod macos {
         running: Arc<AtomicBool>,
         ready_tx: mpsc::Sender<Result<(), String>>,
     ) {
-        let context = Box::new(ModifierTapContext {
-            target_modifiers,
-            armed: AtomicBool::new(true),
-        });
+        let context = Box::new(ModifierTapContext::new(target_modifiers, unsafe {
+            CGEventSourceFlagsState(K_CG_EVENT_SOURCE_STATE_COMBINED_SESSION)
+        }));
         let context_ptr = Box::into_raw(context);
 
         let tap = unsafe {
@@ -330,44 +388,57 @@ mod macos {
             )
         };
 
-        if tap.is_null() {
-            unsafe {
-                drop(Box::from_raw(context_ptr));
-            }
-            let _ = ready_tx.send(Err(
-                "无法监听纯修饰键快捷键，请确认辅助功能权限已授予当前应用".to_string(),
-            ));
-            return;
-        }
-
-        let source = unsafe { CFMachPortCreateRunLoopSource(ptr::null(), tap, 0) };
-        if source.is_null() {
-            unsafe {
-                CFRelease(tap.cast::<c_void>());
-                drop(Box::from_raw(context_ptr));
-            }
-            let _ = ready_tx.send(Err("无法创建纯修饰键快捷键监听源".to_string()));
-            return;
-        }
-
+        unsafe { (*context_ptr).tap = tap };
+        let source = if tap.is_null() {
+            ptr::null_mut()
+        } else {
+            unsafe { CFMachPortCreateRunLoopSource(ptr::null(), tap, 0) }
+        };
         let run_loop = unsafe { CFRunLoopGetCurrent() };
-        unsafe {
-            CFRunLoopAddSource(run_loop, source, kCFRunLoopDefaultMode);
-            CGEventTapEnable(tap, true);
+        if !source.is_null() {
+            unsafe {
+                CFRunLoopAddSource(run_loop, source, kCFRunLoopDefaultMode);
+                CGEventTapEnable(tap, true);
+            }
+        } else {
+            log::warn!("Modifier event tap unavailable; using macOS modifier state polling");
         }
         let _ = ready_tx.send(Ok(()));
 
+        let mut last_recovery = Instant::now();
         while running.load(Ordering::SeqCst) {
+            // macOS may silently disable a listen-only tap. Reading modifier state keeps
+            // this shortcut working even when no disabled callback is delivered. Both
+            // paths share the same latch, so one press still produces exactly one toggle.
             unsafe {
-                CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.1, 1);
+                if source.is_null() {
+                    thread::sleep(Duration::from_millis(20));
+                } else {
+                    CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.02, 1);
+                }
+                if (*context_ptr).update(CGEventSourceFlagsState(
+                    K_CG_EVENT_SOURCE_STATE_COMBINED_SESSION,
+                )) {
+                    super::super::notify_hotkey_triggered();
+                }
+                if !tap.is_null() && last_recovery.elapsed() >= Duration::from_secs(1) {
+                    if !CGEventTapIsEnabled(tap) {
+                        CGEventTapEnable(tap, true);
+                    }
+                    last_recovery = Instant::now();
+                }
             }
         }
 
         unsafe {
-            CGEventTapEnable(tap, false);
-            CFRunLoopRemoveSource(run_loop, source, kCFRunLoopDefaultMode);
-            CFRelease(source.cast::<c_void>());
-            CFRelease(tap.cast::<c_void>());
+            if !source.is_null() {
+                CFRunLoopRemoveSource(run_loop, source, kCFRunLoopDefaultMode);
+                CFRelease(source.cast::<c_void>());
+            }
+            if !tap.is_null() {
+                CGEventTapEnable(tap, false);
+                CFRelease(tap.cast::<c_void>());
+            }
             drop(Box::from_raw(context_ptr));
         }
     }
@@ -413,6 +484,9 @@ mod macos {
         while running.load(Ordering::SeqCst) {
             unsafe {
                 CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.1, 1);
+                if !CGEventTapIsEnabled(tap) {
+                    CGEventTapEnable(tap, true);
+                }
             }
         }
 
@@ -453,19 +527,24 @@ mod macos {
         event: CGEventRef,
         user_info: *mut c_void,
     ) -> CGEventRef {
-        if event_type != K_CG_EVENT_FLAGS_CHANGED || user_info.is_null() {
+        if user_info.is_null() {
             return event;
         }
 
         let context = &*(user_info as *const ModifierTapContext);
-        let current_modifiers = carbon_modifiers_from_event_flags(CGEventGetFlags(event));
-        let exact_match = current_modifiers == context.target_modifiers;
-        let target_released = current_modifiers & context.target_modifiers == 0;
-
-        if target_released {
-            context.armed.store(true, Ordering::SeqCst);
-        } else if exact_match && context.armed.swap(false, Ordering::SeqCst) {
-            super::super::notify_hotkey_triggered();
+        if matches!(
+            event_type,
+            K_CG_EVENT_TAP_DISABLED_BY_TIMEOUT | K_CG_EVENT_TAP_DISABLED_BY_USER_INPUT
+        ) {
+            if !context.tap.is_null() {
+                CGEventTapEnable(context.tap, true);
+            }
+            return event;
+        }
+        if event_type == K_CG_EVENT_FLAGS_CHANGED && !event.is_null() {
+            if context.update(CGEventGetFlags(event)) {
+                super::super::notify_hotkey_triggered();
+            }
         }
 
         event
@@ -486,6 +565,57 @@ mod macos {
             modifiers |= CARBON_CONTROL_KEY;
         }
         modifiers
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn resuming_a_shortcut_waits_for_held_modifiers_to_release() {
+            let both = K_CG_EVENT_FLAG_MASK_COMMAND | K_CG_EVENT_FLAG_MASK_ALTERNATE;
+            for initial in [both, K_CG_EVENT_FLAG_MASK_COMMAND] {
+                let context = ModifierTapContext::new(CARBON_CMD_KEY | CARBON_OPTION_KEY, initial);
+                assert!(!context.update(both));
+                assert!(!context.update(K_CG_EVENT_FLAG_MASK_ALTERNATE));
+                assert!(!context.update(0));
+                assert!(context.update(both));
+            }
+        }
+
+        #[test]
+        fn polling_triggers_without_a_working_event_tap_and_deduplicates_callbacks() {
+            let context = ModifierTapContext {
+                target_modifiers: CARBON_CMD_KEY | CARBON_OPTION_KEY,
+                armed: AtomicBool::new(true),
+                tap: ptr::null_mut(),
+            };
+            let both = K_CG_EVENT_FLAG_MASK_COMMAND | K_CG_EVENT_FLAG_MASK_ALTERNATE;
+            assert!(!context.update(0));
+            assert!(!context.update(K_CG_EVENT_FLAG_MASK_COMMAND));
+            assert!(context.update(both)); // polling still fires if the tap delivers no events
+            for _ in 0..100 {
+                assert!(!context.update(both));
+            } // callbacks and polling cannot stop it again
+            assert!(!context.update(0));
+            assert!(context.update(both)); // a second press can stop dictation
+        }
+
+        #[test]
+        fn extra_modifiers_and_partial_release_do_not_double_trigger() {
+            let context = ModifierTapContext {
+                target_modifiers: CARBON_CMD_KEY | CARBON_OPTION_KEY,
+                armed: AtomicBool::new(true),
+                tap: ptr::null_mut(),
+            };
+            let both = K_CG_EVENT_FLAG_MASK_COMMAND | K_CG_EVENT_FLAG_MASK_ALTERNATE;
+            assert!(!context.update(both | K_CG_EVENT_FLAG_MASK_SHIFT));
+            assert!(context.update(both));
+            assert!(!context.update(K_CG_EVENT_FLAG_MASK_ALTERNATE));
+            assert!(!context.update(both));
+            assert!(!context.update(0));
+            assert!(context.update(both));
+        }
     }
 }
 

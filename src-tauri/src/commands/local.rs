@@ -106,7 +106,6 @@ pub async fn save_settings(
     app: AppHandle,
     settings: SaveSettingsRequest,
 ) -> Result<AppSettings, String> {
-    crate::voice_input::hotkey::parse_hotkey(&settings.voice_input_hotkey)?;
     let previous_settings = db::get_settings()?;
     crate::voice_input::apply_hotkey_registration(
         settings.voice_input_enabled,

@@ -13,4 +13,5 @@ pub(crate) mod support {
 }
 
 mod db_queue;
+mod pastebox;
 mod voice_input;

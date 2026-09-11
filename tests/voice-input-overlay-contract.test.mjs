@@ -46,7 +46,7 @@ assert.match(appSource, /<VoiceInputOverlay\s+standalone\s*\/>/);
 assert.doesNotMatch(sliceBetween(appSource, 'function AppContent()', 'function App()'), /<VoiceInputOverlay/);
 assert.match(appSource, /document\.documentElement\.classList\.toggle\('voice-input-overlay-window', isOverlayWindow\)/);
 assert.match(libSource, /WindowEvent::CloseRequested/);
-assert.match(libSource, /window\.label\(\) == "main"/);
+assert.match(libSource, /window\.label\(\) == MAIN_WINDOW_LABEL/);
 assert.match(libSource, /api\.prevent_close\(\)/);
 assert.match(libSource, /window\.hide\(\)/);
 assert.match(overlayStyleSource, /html\.voice-input-overlay-window,\s*\nbody\.voice-input-overlay-window/);
@@ -74,17 +74,24 @@ const showOverlaySource = sliceBetween(voiceInputOverlayRustSource, 'fn show_voi
 assert.doesNotMatch(showOverlaySource, /position_voice_input_overlay/);
 const startDictationSource = sliceBetween(voiceInputRustSource, 'pub async fn start_dictation', 'pub async fn stop_dictation');
 const startingStatusIndex = startDictationSource.indexOf('emit_status(&app, "starting"');
-const recorderStartIndex = startDictationSource.indexOf('recorder::ActiveShortRecorder::start().await');
+const recorderStartIndex = startDictationSource.indexOf('recorder::ActiveShortRecorder::start()');
+const targetCaptureIndex = startDictationSource.indexOf('crate::pastebox::begin_dictation(&app)');
 const listeningStatusIndex = startDictationSource.indexOf('emit_status(&app, "listening"');
 const enterRegistrationIndex = startDictationSource.indexOf('platform_hotkey::register_enter_submit()');
-assert.notEqual(startingStatusIndex, -1, 'start_dictation should emit starting before opening the recorder');
+assert.notEqual(startingStatusIndex, -1, 'start_dictation should show startup feedback without waiting for AX');
+assert.notEqual(targetCaptureIndex, -1, 'command entry should immediately launch its capture task');
 assert.notEqual(recorderStartIndex, -1, 'start_dictation should open the short recorder');
 assert.notEqual(listeningStatusIndex, -1, 'start_dictation should emit listening after the recorder opens');
 assert.notEqual(enterRegistrationIndex, -1, 'start_dictation should register Enter submit');
 assert.ok(
-  startingStatusIndex < recorderStartIndex,
-  'starting status should be emitted before the microphone stream is opened',
+  targetCaptureIndex < startingStatusIndex,
+  'capture must be launched before recorder UI is shown',
 );
+assert.doesNotMatch(startDictationSource, /tokio::join!/, 'AX must not gate microphone readiness');
+assert.match(showOverlaySource, /set_focusable\(false\)/, 'parallel capture requires a non-focusable overlay');
+const shortcutEntry = sliceBetween(voiceInputRustSource, 'fn notify_hotkey_triggered()', 'fn notify_enter_pressed()');
+assert.ok(shortcutEntry.indexOf('begin_dictation_from_hotkey()') < shortcutEntry.indexOf('send_hotkey_command('),
+  'shortcut capture must start before the recorder command is enqueued');
 assert.ok(
   recorderStartIndex < listeningStatusIndex,
   'listening status should wait until the microphone stream is opened',
