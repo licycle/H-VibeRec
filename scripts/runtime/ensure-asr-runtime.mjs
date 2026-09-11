@@ -105,7 +105,7 @@ async function verifyRuntime(verbose) {
     python,
     [
       '-c',
-      'import importlib.metadata as m; import agents, openai, huggingface_hub, imageio_ffmpeg, modelscope, socksio, numpy, torch, torchaudio, ddgs; m.version("funasr"); print("python-runtime-ok")',
+      'import importlib.metadata as m; import agents, openai, huggingface_hub, imageio_ffmpeg, modelscope, socksio, numpy, torch, torchaudio, ddgs; v = tuple(int("".join(ch for ch in part if ch.isdigit()) or 0) for part in m.version("funasr").split(".")[:3]); assert v >= (1, 4, 15), "funasr " + m.version("funasr") + " is older than 1.4.15"; print("python-runtime-ok")',
     ],
     repoRoot,
   );
@@ -115,7 +115,7 @@ async function verifyRuntime(verbose) {
       python,
       [
         '-c',
-        'import importlib.metadata as m; import agents, openai, huggingface_hub, imageio_ffmpeg, modelscope, socksio, numpy, torch, torchaudio, ddgs; m.version("funasr"); print("python-runtime-ok")',
+        'import importlib.metadata as m; import agents, openai, huggingface_hub, imageio_ffmpeg, modelscope, socksio, numpy, torch, torchaudio, ddgs; v = tuple(int("".join(ch for ch in part if ch.isdigit()) or 0) for part in m.version("funasr").split(".")[:3]); assert v >= (1, 4, 15), "funasr " + m.version("funasr") + " is older than 1.4.15"; print("python-runtime-ok")',
       ],
       repoRoot,
     );

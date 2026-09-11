@@ -4,6 +4,7 @@ from __future__ import annotations
 import inspect
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -16,6 +17,8 @@ ENGINE_NAME = "FunASR-Workflow"
 DEFAULT_PROFILE = "meeting_full"
 DICTATION_PROFILE = "dictation"
 DEFAULT_ASR_MODEL = "paraformer-zh"
+# SenseVoiceSmall: zh / yue / en / ja / ko with automatic language detection and native punctuation.
+SENSEVOICE_MODEL = "sensevoice-small"
 DEFAULT_VAD_MODEL_NAME = "fsmn-vad"
 DEFAULT_SPEAKER_MODEL_NAME = "cam++"
 DEFAULT_SPEAKER_MODEL_DIR = "campplus"
@@ -25,6 +28,7 @@ DEFAULT_AUXILIARY_DIR = ".voice_vibe_aux"
 
 MODELSCOPE_MODEL_ALIASES = {
     DEFAULT_ASR_MODEL: "iic/speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
+    SENSEVOICE_MODEL: "iic/SenseVoiceSmall",
     DEFAULT_VAD_MODEL_NAME: "iic/speech_fsmn_vad_zh-cn-16k-common-pytorch",
     DEFAULT_SPEAKER_MODEL_NAME: "iic/speech_campplus_sv_zh-cn_16k-common",
     DEFAULT_SPEAKER_MODEL_DIR: "iic/speech_campplus_sv_zh-cn_16k-common",
@@ -33,6 +37,7 @@ MODELSCOPE_MODEL_ALIASES = {
 
 HUGGINGFACE_MODEL_ALIASES = {
     DEFAULT_ASR_MODEL: "funasr/paraformer-zh",
+    SENSEVOICE_MODEL: "FunAudioLLM/SenseVoiceSmall",
     DEFAULT_VAD_MODEL_NAME: "funasr/fsmn-vad",
     DEFAULT_SPEAKER_MODEL_NAME: "funasr/campplus",
     DEFAULT_SPEAKER_MODEL_DIR: "funasr/campplus",
@@ -63,6 +68,183 @@ _WORKFLOW_MODEL_CACHE: Dict[str, Any] = {
     "key": None,
     "model": None,
 }
+
+MODEL_KIND_PARAFORMER = "paraformer"
+MODEL_KIND_SENSEVOICE = "sensevoice"
+MODEL_KIND_LABELS = {
+    MODEL_KIND_PARAFORMER: DEFAULT_ASR_MODEL,
+    MODEL_KIND_SENSEVOICE: SENSEVOICE_MODEL,
+}
+# funasr < 1.3.26 crashes when SenseVoice is combined with cam++ speaker diarization.
+MIN_FUNASR_VERSION_FOR_SENSEVOICE = (1, 3, 26)
+# Emoji that funasr's rich_transcription_postprocess substitutes for emotion / audio-event tags.
+SENSEVOICE_EMOJI = frozenset("😊😔😡😰🤢😮🎼👏😀😭🤧😷❓")
+_MODEL_KIND_CACHE: Dict[str, str] = {}
+_MODEL_CLASS_LINE = re.compile(r"^model\s*:\s*['\"]?([A-Za-z0-9_./-]+)")
+_SENSEVOICE_TAG = re.compile(r"<\|[^<>|]*\|>")
+_SENSEVOICE_LANG_TAG = re.compile(r"<\|(zh|en|yue|ja|ko|nospeech)\|>")
+
+
+def read_model_class_name(model_path: str) -> str | None:
+    """Return the top-level `model:` class declared in a FunASR config.yaml, if any."""
+    config_path = Path(model_path) / "config.yaml"
+    try:
+        with open(config_path, encoding="utf-8") as handle:
+            for line in handle:
+                match = _MODEL_CLASS_LINE.match(line)
+                if match:
+                    return match.group(1)
+    except OSError:
+        return None
+    return None
+
+
+def detect_model_kind(model_path: str) -> str:
+    key = str(model_path)
+    cached = _MODEL_KIND_CACHE.get(key)
+    if cached:
+        return cached
+    class_name = (read_model_class_name(key) or "").lower()
+    kind = MODEL_KIND_SENSEVOICE if "sensevoice" in class_name else MODEL_KIND_PARAFORMER
+    _MODEL_KIND_CACHE[key] = kind
+    return kind
+
+
+def model_uses_punctuation_model(model_kind: str) -> bool:
+    # SenseVoice emits punctuation itself; running ct-punc on top of it duplicates punctuation.
+    return model_kind != MODEL_KIND_SENSEVOICE
+
+
+def generate_kwargs_for(model_kind: str) -> Dict[str, Any]:
+    if model_kind == MODEL_KIND_SENSEVOICE:
+        return {"language": "auto", "use_itn": True}
+    return {}
+
+
+def parse_version_tuple(value: Any) -> tuple[int, ...] | None:
+    if not value:
+        return None
+    parts: List[int] = []
+    for piece in str(value).split(".")[:3]:
+        digits = "".join(char for char in piece if char.isdigit())
+        if not digits:
+            break
+        parts.append(int(digits))
+    return tuple(parts) if parts else None
+
+
+def ensure_funasr_supports(model_kind: str) -> None:
+    if model_kind != MODEL_KIND_SENSEVOICE:
+        return
+    try:
+        import funasr
+    except Exception:
+        return
+    version = getattr(funasr, "__version__", None)
+    parsed = parse_version_tuple(version)
+    if parsed and parsed < MIN_FUNASR_VERSION_FOR_SENSEVOICE:
+        required = ".".join(str(part) for part in MIN_FUNASR_VERSION_FOR_SENSEVOICE)
+        raise SidecarError(
+            "FUNASR_TOO_OLD",
+            f"SenseVoiceSmall requires funasr>={required}, but the bundled runtime has funasr {version}. "
+            "Run `npm run runtime:ensure` to update the ASR runtime.",
+        )
+
+
+def clean_sensevoice_text(text: Any) -> str:
+    raw = str(text or "")
+    cleaned = raw
+    try:
+        from funasr.utils.postprocess_utils import rich_transcription_postprocess
+
+        cleaned = rich_transcription_postprocess(raw)
+    except Exception:
+        pass
+    cleaned = _SENSEVOICE_TAG.sub("", cleaned)
+    cleaned = "".join(char for char in cleaned if char not in SENSEVOICE_EMOJI)
+    return re.sub(r"[ \t]+", " ", cleaned).strip()
+
+
+def sensevoice_language_tags(text: Any) -> List[str]:
+    return [match.group(1) for match in _SENSEVOICE_LANG_TAG.finditer(str(text or ""))]
+
+
+def dominant_language(tags: Sequence[str]) -> str | None:
+    counts: Dict[str, int] = {}
+    for tag in tags:
+        if tag == "nospeech":
+            continue
+        counts[tag] = counts.get(tag, 0) + 1
+    if not counts:
+        return None
+    return max(counts, key=lambda tag: counts[tag])
+
+
+def postprocess_sensevoice_result(result_dict: Dict[str, Any]) -> tuple[Dict[str, Any], str | None]:
+    """Strip SenseVoice rich-transcription tags from every text field and derive the dominant language."""
+    cleaned = dict(result_dict)
+    tags: List[str] = []
+    sentence_info = result_dict.get("sentence_info")
+    if isinstance(sentence_info, list):
+        items: List[Any] = []
+        for item in sentence_info:
+            if not isinstance(item, dict):
+                items.append(item)
+                continue
+            entry = dict(item)
+            for key in ("text", "sentence"):
+                if isinstance(entry.get(key), str):
+                    if key == "text":
+                        tags.extend(sensevoice_language_tags(entry[key]))
+                    entry[key] = clean_sensevoice_text(entry[key])
+            items.append(entry)
+        cleaned["sentence_info"] = items
+    if not tags:
+        tags = sensevoice_language_tags(result_dict.get("text"))
+    cleaned["text"] = clean_sensevoice_text(result_dict.get("text"))
+    return cleaned, dominant_language(tags)
+
+
+def resolve_punctuation_model_path(
+    payload: Dict[str, Any],
+    auxiliary_paths: Dict[str, str],
+    model_kind: str,
+) -> str | None:
+    if not model_uses_punctuation_model(model_kind):
+        return None
+    return require_local_model_path(
+        str(payload.get("punc_model_path") or auxiliary_paths["punc_model_path"]),
+        "Punctuation",
+    )
+
+
+def engine_metadata(
+    model_kind: str,
+    profile: str,
+    model_path: str,
+    vad_model_path: str | None,
+    speaker_model_path: str | None,
+    punc_model_path: str | None,
+    use_gpu: bool,
+) -> Dict[str, Any]:
+    return {
+        "name": ENGINE_NAME,
+        "profile": profile,
+        "asr_model": MODEL_KIND_LABELS.get(model_kind, DEFAULT_ASR_MODEL),
+        "asr_model_kind": model_kind,
+        "model_revision": DEFAULT_FUNASR_MODEL_REVISION if model_kind == MODEL_KIND_PARAFORMER else None,
+        "model_path": model_path,
+        "vad_model": DEFAULT_VAD_MODEL_NAME,
+        "vad_model_revision": DEFAULT_FUNASR_MODEL_REVISION if vad_model_path else None,
+        "vad_model_path": vad_model_path,
+        "speaker_model": DEFAULT_SPEAKER_MODEL_NAME,
+        "speaker_model_revision": None,
+        "speaker_model_path": speaker_model_path,
+        "punc_model": DEFAULT_PUNC_MODEL_NAME if punc_model_path else None,
+        "punc_model_revision": DEFAULT_FUNASR_MODEL_REVISION if punc_model_path else None,
+        "punc_model_path": punc_model_path,
+        "device": get_inference_device(use_gpu),
+    }
 
 
 @dataclass
@@ -628,10 +810,11 @@ def make_workflow_model(
 ) -> Any:
     from funasr import AutoModel
 
+    model_kind = detect_model_kind(model_path)
+    ensure_funasr_supports(model_kind)
     params = get_optimized_model_params(audio_file_path)
     kwargs: Dict[str, Any] = {
         "model": model_path,
-        "model_revision": DEFAULT_FUNASR_MODEL_REVISION,
         "disable_update": True,
         "check_latest": False,
         "device": get_inference_device(use_gpu),
@@ -639,6 +822,8 @@ def make_workflow_model(
         "ncpu": params["ncpu"],
         "disable_pbar": True,
     }
+    if model_kind == MODEL_KIND_PARAFORMER:
+        kwargs["model_revision"] = DEFAULT_FUNASR_MODEL_REVISION
     if vad_model_path:
         kwargs["vad_model"] = vad_model_path
         kwargs["vad_model_revision"] = DEFAULT_FUNASR_MODEL_REVISION
@@ -655,7 +840,10 @@ def make_workflow_model(
             "check_latest": False,
             "disable_pbar": True,
         }
-    if punc_model_path:
+        if model_kind == MODEL_KIND_SENSEVOICE:
+            # SenseVoice has no punctuation-aligned sentence split, so speakers are labelled per VAD segment.
+            kwargs["spk_mode"] = "vad_segment"
+    if punc_model_path and model_uses_punctuation_model(model_kind):
         kwargs["punc_model"] = punc_model_path
         kwargs["punc_model_revision"] = DEFAULT_FUNASR_MODEL_REVISION
         kwargs["punc_kwargs"] = {
@@ -685,7 +873,7 @@ def generate_with_retries(
                 use_gpu,
                 audio_path,
             )
-            return model.generate(input=audio_path)
+            return model.generate(input=audio_path, **generate_kwargs_for(detect_model_kind(model_path)))
         except Exception as exc:
             last_error = exc
             error_msg = str(exc).lower()
@@ -758,7 +946,7 @@ def generate_with_cached_model(
                 use_gpu,
                 audio_path,
             )
-            return model.generate(input=audio_path)
+            return model.generate(input=audio_path, **generate_kwargs_for(detect_model_kind(model_path)))
         except Exception as exc:
             last_error = exc
             error_msg = str(exc).lower()
@@ -920,12 +1108,10 @@ def transcribe(payload: Dict[str, Any]) -> Dict[str, Any]:
         raise RuntimeError(f"ffmpeg not found: {ffmpeg_path}")
     prepend_executable_dir_to_path(ffmpeg_path)
     require_local_model_path(model_path, "ASR")
+    model_kind = detect_model_kind(model_path)
 
     auxiliary_paths = auxiliary_model_paths(auxiliary_root_for_model(model_path))
-    punc_model_path = require_local_model_path(
-        str(payload.get("punc_model_path") or auxiliary_paths["punc_model_path"]),
-        "Punctuation",
-    )
+    punc_model_path = resolve_punctuation_model_path(payload, auxiliary_paths, model_kind)
     if profile == DICTATION_PROFILE:
         vad_model_path = None
         speaker_model_path = None
@@ -971,6 +1157,9 @@ def transcribe(payload: Dict[str, Any]) -> Dict[str, Any]:
     total_elapsed = time.time() - total_start
 
     result_dict = first_result_dict(result)
+    detected_language: str | None = None
+    if model_kind == MODEL_KIND_SENSEVOICE:
+        result_dict, detected_language = postprocess_sensevoice_result(result_dict)
     segments = parse_sentence_info(result_dict, duration_seconds)
     if not segments:
         raise SidecarError("EMPTY_TRANSCRIPT", "ASR returned empty transcript")
@@ -988,27 +1177,19 @@ def transcribe(payload: Dict[str, Any]) -> Dict[str, Any]:
         "segments": [transcript_segment_to_dict(segment) for segment in segments],
         "duration_seconds": duration_seconds or elapsed,
         "rtf": elapsed / duration_seconds if duration_seconds and duration_seconds > 0 else None,
-        "language": None,
+        "language": detected_language,
         "confidence": None,
         "segment_count": len(segments),
         "speaker_count": speaker_count,
-        "engine": {
-            "name": ENGINE_NAME,
-            "profile": profile,
-            "asr_model": DEFAULT_ASR_MODEL,
-            "model_revision": DEFAULT_FUNASR_MODEL_REVISION,
-            "model_path": model_path,
-            "vad_model": DEFAULT_VAD_MODEL_NAME,
-            "vad_model_revision": DEFAULT_FUNASR_MODEL_REVISION if vad_model_path else None,
-            "vad_model_path": vad_model_path,
-            "speaker_model": DEFAULT_SPEAKER_MODEL_NAME,
-            "speaker_model_revision": None,
-            "speaker_model_path": speaker_model_path,
-            "punc_model": DEFAULT_PUNC_MODEL_NAME,
-            "punc_model_revision": DEFAULT_FUNASR_MODEL_REVISION if punc_model_path else None,
-            "punc_model_path": punc_model_path,
-            "device": get_inference_device(use_gpu),
-        },
+        "engine": engine_metadata(
+            model_kind,
+            profile,
+            model_path,
+            vad_model_path,
+            speaker_model_path,
+            punc_model_path,
+            use_gpu,
+        ),
         "timing": {
             "normalize_audio_ms": int(normalize_elapsed * 1000),
             "asr_infer_ms": int(elapsed * 1000),
@@ -1029,12 +1210,10 @@ def warmup(payload: Dict[str, Any]) -> Dict[str, Any]:
     if not Path(audio_path).exists():
         raise FileNotFoundError(f"Warmup audio file not found: {audio_path}")
     require_local_model_path(model_path, "ASR")
+    model_kind = detect_model_kind(model_path)
 
     auxiliary_paths = auxiliary_model_paths(auxiliary_root_for_model(model_path))
-    punc_model_path = require_local_model_path(
-        str(payload.get("punc_model_path") or auxiliary_paths["punc_model_path"]),
-        "Punctuation",
-    )
+    punc_model_path = resolve_punctuation_model_path(payload, auxiliary_paths, model_kind)
     if profile == DICTATION_PROFILE:
         vad_model_path = None
         speaker_model_path = None
@@ -1060,30 +1239,22 @@ def warmup(payload: Dict[str, Any]) -> Dict[str, Any]:
     model_elapsed = time.time() - model_start
 
     infer_start = time.time()
-    result = model.generate(input=audio_path)
+    result = model.generate(input=audio_path, **generate_kwargs_for(model_kind))
     infer_elapsed = time.time() - infer_start
     total_elapsed = time.time() - total_start
 
     return {
         "profile": profile,
         "warmup_audio_path": audio_path,
-        "engine": {
-            "name": ENGINE_NAME,
-            "profile": profile,
-            "asr_model": DEFAULT_ASR_MODEL,
-            "model_revision": DEFAULT_FUNASR_MODEL_REVISION,
-            "model_path": model_path,
-            "vad_model": DEFAULT_VAD_MODEL_NAME,
-            "vad_model_revision": DEFAULT_FUNASR_MODEL_REVISION if vad_model_path else None,
-            "vad_model_path": vad_model_path,
-            "speaker_model": DEFAULT_SPEAKER_MODEL_NAME,
-            "speaker_model_revision": None,
-            "speaker_model_path": speaker_model_path,
-            "punc_model": DEFAULT_PUNC_MODEL_NAME,
-            "punc_model_revision": DEFAULT_FUNASR_MODEL_REVISION if punc_model_path else None,
-            "punc_model_path": punc_model_path,
-            "device": get_inference_device(use_gpu),
-        },
+        "engine": engine_metadata(
+            model_kind,
+            profile,
+            model_path,
+            vad_model_path,
+            speaker_model_path,
+            punc_model_path,
+            use_gpu,
+        ),
         "timing": {
             "model_warmup_ms": int(model_elapsed * 1000),
             "warmup_infer_ms": int(infer_elapsed * 1000),

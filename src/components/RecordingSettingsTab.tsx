@@ -544,15 +544,21 @@ export function RecordingSettingsTab({ initialPane, showPaneTabs = true, darkMod
             )}
             <div className="asr-engine-summary">
               <div>
-                <div className="asr-engine-title">FunASR / paraformer-zh + CAM++ + CT Punc</div>
-                <div className="asr-engine-copy">
-                  默认使用本地 FunASR 流水线，内置 VAD、说话人识别和标点恢复。
-                </div>
+                <div className="asr-engine-title">{asrEngineTitle(settingsDraft.asr_model_repo)}</div>
+                <div className="asr-engine-copy">{asrEngineCopy(settingsDraft.asr_model_repo)}</div>
               </div>
               <span className="config-status-pill ok">本机部署</span>
             </div>
             <div className="settings-grid">
-              <TextField label="FunASR 模型仓库" value={settingsDraft.asr_model_repo} onChange={value => updateSetting('asr_model_repo', value)} />
+              <SelectField
+                label="本地 ASR 模型"
+                value={asrModelPreset(settingsDraft.asr_model_repo)}
+                onChange={value => updateSetting('asr_model_repo', value === CUSTOM_ASR_MODEL ? '' : value)}
+                options={ASR_MODEL_OPTIONS}
+              />
+              {asrModelPreset(settingsDraft.asr_model_repo) === CUSTOM_ASR_MODEL && (
+                <TextField label="FunASR 模型仓库" value={settingsDraft.asr_model_repo} onChange={value => updateSetting('asr_model_repo', value)} />
+              )}
               <SelectField
                 label="模型下载源"
                 value={settingsDraft.asr_model_source || 'modelscope'}
@@ -1281,6 +1287,40 @@ function modelStatusMessage(message: string, source: string) {
 
 function modelSourceLabel(source?: string | null) {
   return source === 'modelscope' ? 'ModelScope 魔塔' : 'Hugging Face';
+}
+
+const PARAFORMER_ASR_MODEL = 'paraformer-zh';
+const SENSEVOICE_ASR_MODEL = 'sensevoice-small';
+const CUSTOM_ASR_MODEL = '__custom__';
+const ASR_MODEL_OPTIONS = [
+  { value: PARAFORMER_ASR_MODEL, label: 'paraformer-zh：中文，字级时间戳，热词' },
+  { value: SENSEVOICE_ASR_MODEL, label: 'SenseVoiceSmall：中/粤/英/日/韩 自动识别' },
+  { value: CUSTOM_ASR_MODEL, label: '自定义 FunASR 模型仓库' },
+];
+
+function asrModelPreset(repo?: string | null) {
+  const trimmed = (repo || '').trim();
+  if (trimmed === PARAFORMER_ASR_MODEL || trimmed === SENSEVOICE_ASR_MODEL) return trimmed;
+  return CUSTOM_ASR_MODEL;
+}
+
+function asrEngineTitle(repo?: string | null) {
+  const preset = asrModelPreset(repo);
+  if (preset === SENSEVOICE_ASR_MODEL) return 'FunASR / SenseVoiceSmall + FSMN-VAD + CAM++';
+  if (preset === PARAFORMER_ASR_MODEL) return 'FunASR / paraformer-zh + CAM++ + CT Punc';
+  const trimmed = (repo || '').trim();
+  return trimmed ? `FunASR / ${trimmed} + CAM++ + CT Punc` : 'FunASR / 自定义模型';
+}
+
+function asrEngineCopy(repo?: string | null) {
+  const preset = asrModelPreset(repo);
+  if (preset === SENSEVOICE_ASR_MODEL) {
+    return 'SenseVoiceSmall 自动识别中文、粤语、英文、日文、韩文，自带标点，说话人按 VAD 片段区分。切换模型后保存配置，再到「检测」页点击下载/检查模型；已下载的模型会保留，可随时切回。';
+  }
+  if (preset === PARAFORMER_ASR_MODEL) {
+    return '默认使用本地 FunASR 流水线，内置 VAD、说话人识别和标点恢复。切换模型后保存配置，再到「检测」页点击下载/检查模型。';
+  }
+  return '使用自定义的 FunASR 兼容模型仓库，目录中需要包含 model.pt 和 config.yaml。切换模型后保存配置，再到「检测」页点击下载/检查模型。';
 }
 
 function formatPercent(value?: number | null) {

@@ -41,7 +41,7 @@ H-VibeRec 是一款面向 macOS 的本地优先桌面应用，用于会议录音
 ### 核心功能
 
 - 本地录音和音频导入。
-- FunASR workflow 本地转写，默认使用 `paraformer-zh`、FSMN-VAD、CAM++ 和 `ct-punc-c`。
+- FunASR workflow 本地转写，默认使用 `paraformer-zh`、FSMN-VAD、CAM++ 和 `ct-punc-c`；可在设置中切换为 `SenseVoiceSmall`（中文、粤语、英文、日文、韩文自动识别）。
 - 说话人区分、时间戳、标点恢复和结构化转写片段。
 - 基于 OpenAI-compatible Chat Completions API 的会议纪要和长文本分段总结。
 - 本地笔记工作区、转写结果、总结结果和 AI 问答。
@@ -95,7 +95,7 @@ See the full guide: [macOS Installation and First-Time Setup](docs/DEPLOYMENT.en
 ### Features
 
 - Local recording and audio import.
-- Local FunASR workflow transcription with `paraformer-zh`, FSMN-VAD, CAM++, and `ct-punc-c` by default.
+- Local FunASR workflow transcription with `paraformer-zh`, FSMN-VAD, CAM++, and `ct-punc-c` by default; `SenseVoiceSmall` (Mandarin, Cantonese, English, Japanese, Korean with automatic language detection) can be selected in settings.
 - Speaker labels, timestamps, punctuation restoration, and structured transcript segments.
 - Meeting notes and long-transcript summaries through an OpenAI-compatible Chat Completions API.
 - Local note workspaces, transcript output, summary output, and AI Q&A.

@@ -756,6 +756,195 @@ class AutoModel:
             main.ffmpeg_exists = original_ffmpeg
             main.generate_with_retries = original_generate
 
+    def test_sensevoice_alias_resolves_on_both_hubs_without_pinned_revision(self) -> None:
+        from main import SENSEVOICE_MODEL, model_revision_for, resolve_model_alias
+
+        self.assertEqual(resolve_model_alias(SENSEVOICE_MODEL, "modelscope"), "iic/SenseVoiceSmall")
+        self.assertEqual(resolve_model_alias(SENSEVOICE_MODEL, "huggingface"), "FunAudioLLM/SenseVoiceSmall")
+        self.assertIsNone(model_revision_for(SENSEVOICE_MODEL, "modelscope"))
+        self.assertIsNone(model_revision_for(SENSEVOICE_MODEL, "huggingface"))
+
+    def test_detect_model_kind_reads_config_yaml_model_class(self) -> None:
+        from main import MODEL_KIND_PARAFORMER, MODEL_KIND_SENSEVOICE, detect_model_kind
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            sensevoice_dir = Path(tmpdir) / "sensevoice"
+            paraformer_dir = Path(tmpdir) / "paraformer"
+            empty_dir = Path(tmpdir) / "empty"
+            for path in (sensevoice_dir, paraformer_dir, empty_dir):
+                path.mkdir()
+            (sensevoice_dir / "config.yaml").write_text(
+                "encoder: SenseVoiceEncoderSmall\nmodel: SenseVoiceSmall\nmodel_conf:\n  length_normalized_loss: true\n",
+                encoding="utf-8",
+            )
+            (paraformer_dir / "config.yaml").write_text(
+                "model: SeacoParaformer\nmodel_conf:\n  ctc_weight: 0.0\n",
+                encoding="utf-8",
+            )
+
+            self.assertEqual(detect_model_kind(str(sensevoice_dir)), MODEL_KIND_SENSEVOICE)
+            self.assertEqual(detect_model_kind(str(paraformer_dir)), MODEL_KIND_PARAFORMER)
+            self.assertEqual(detect_model_kind(str(empty_dir)), MODEL_KIND_PARAFORMER)
+
+    def test_clean_sensevoice_text_strips_rich_tags_and_emoji(self) -> None:
+        from main import clean_sensevoice_text, postprocess_sensevoice_result
+
+        self.assertEqual(clean_sensevoice_text("<|zh|><|NEUTRAL|><|Speech|><|withitn|>大家好。"), "大家好。")
+        self.assertEqual(clean_sensevoice_text("<|en|><|HAPPY|><|Speech|><|withitn|>Hello there."), "Hello there.")
+        self.assertEqual(clean_sensevoice_text("没有标签的文本。"), "没有标签的文本。")
+
+        cleaned, language = postprocess_sensevoice_result(
+            {
+                "text": "<|zh|><|NEUTRAL|><|Speech|><|withitn|>大家好。 <|en|><|NEUTRAL|><|Speech|><|withitn|>Hi. <|zh|><|NEUTRAL|><|Speech|><|withitn|>收到。",
+                "sentence_info": [
+                    {"start": 0, "end": 320, "spk": 0, "text": "<|zh|><|NEUTRAL|><|Speech|><|withitn|>大家好。", "sentence": "<|zh|><|NEUTRAL|><|Speech|><|withitn|>大家好。"},
+                    {"start": 320, "end": 640, "spk": 1, "text": "<|en|><|NEUTRAL|><|Speech|><|withitn|>Hi.", "sentence": "<|en|><|NEUTRAL|><|Speech|><|withitn|>Hi."},
+                    {"start": 640, "end": 960, "spk": 0, "text": "<|zh|><|NEUTRAL|><|Speech|><|withitn|>收到。", "sentence": "<|zh|><|NEUTRAL|><|Speech|><|withitn|>收到。"},
+                ],
+            }
+        )
+        self.assertEqual(language, "zh")
+        self.assertEqual([item["text"] for item in cleaned["sentence_info"]], ["大家好。", "Hi.", "收到。"])
+        self.assertEqual([item["sentence"] for item in cleaned["sentence_info"]], ["大家好。", "Hi.", "收到。"])
+        self.assertNotIn("<|", cleaned["text"])
+        self.assertIn("大家好。", cleaned["text"])
+
+    def write_sensevoice_aspect(self, aspect_dir: Path) -> Path:
+        aspect_path = aspect_dir / "funasr.py"
+        aspect_path.write_text(
+            """
+import json
+import os
+from pathlib import Path
+
+
+def _log(payload):
+    log_path = os.environ.get("VOICE_VIBE_FUNASR_ASPECT_LOG")
+    if not log_path:
+        return
+    with open(log_path, "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, ensure_ascii=False) + "\\n")
+
+
+class AutoModel:
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+        _log({
+            "event": "init",
+            "model": kwargs.get("model"),
+            "vad_model": kwargs.get("vad_model"),
+            "spk_model": kwargs.get("spk_model"),
+            "spk_mode": kwargs.get("spk_mode"),
+            "punc_model": kwargs.get("punc_model"),
+            "model_revision": kwargs.get("model_revision"),
+            "device": kwargs.get("device"),
+        })
+
+    def generate(self, input, **kwargs):
+        _log({"event": "generate", "input": str(input), "kwargs": kwargs})
+        tag = "<|NEUTRAL|><|Speech|><|withitn|>"
+        return [{
+            "text": f"<|zh|>{tag}大家好。 <|en|>{tag}Hello there. <|zh|>{tag}收到。",
+            "sentence_info": [
+                {"start": 0, "end": 320, "spk": 0, "text": f"<|zh|>{tag}大家好。", "sentence": f"<|zh|>{tag}大家好。"},
+                {"start": 320, "end": 760, "spk": 1, "text": f"<|en|>{tag}Hello there.", "sentence": f"<|en|>{tag}Hello there."},
+                {"start": 760, "end": 1000, "spk": 0, "text": f"<|zh|>{tag}收到。", "sentence": f"<|zh|>{tag}收到。"},
+            ],
+        }]
+""".lstrip(),
+            encoding="utf-8",
+        )
+        return aspect_path
+
+    def test_sensevoice_transcribe_skips_punctuation_and_cleans_rich_tags(self) -> None:
+        sidecar_dir = MODULE_DIR
+        ffmpeg_path = self.resolve_local_ffmpeg()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            aspect_dir = tmp / "aspect"
+            aspect_dir.mkdir()
+            self.write_sensevoice_aspect(aspect_dir)
+
+            audio_path = tmp / "input.wav"
+            normalized_path = tmp / "normalized.wav"
+            model_path = tmp / "model"
+            vad_model_path = model_path / ".voice_vibe_aux" / "fsmn-vad"
+            speaker_model_path = model_path / ".voice_vibe_aux" / "campplus"
+            punc_model_path = model_path / ".voice_vibe_aux" / "ct-punc-c"
+            for path in (model_path, vad_model_path, speaker_model_path, punc_model_path):
+                path.mkdir(parents=True, exist_ok=True)
+            (model_path / "config.yaml").write_text("model: SenseVoiceSmall\nmodel_conf: {}\n", encoding="utf-8")
+            self.write_silent_wav(audio_path)
+
+            request = {
+                "id": "sensevoice-transcribe",
+                "type": "transcribe",
+                "payload": {
+                    "audio_path": str(audio_path),
+                    "normalized_path": str(normalized_path),
+                    "model_path": str(model_path),
+                    "ffmpeg_path": ffmpeg_path,
+                    "use_gpu": True,
+                    "vad_model_path": str(vad_model_path),
+                    "speaker_model_path": str(speaker_model_path),
+                    "punc_model_path": str(punc_model_path),
+                },
+            }
+
+            aspect_log = tmp / "funasr-aspect.jsonl"
+            env = os.environ.copy()
+            existing_pythonpath = env.get("PYTHONPATH")
+            env["PYTHONPATH"] = os.pathsep.join(
+                [str(aspect_dir), str(sidecar_dir)]
+                + ([existing_pythonpath] if existing_pythonpath else [])
+            )
+            env["VOICE_VIBE_DEVICE"] = "auto"
+            env["VOICE_VIBE_FUNASR_ASPECT_LOG"] = str(aspect_log)
+
+            completed = subprocess.run(
+                [sys.executable, str(sidecar_dir / "main.py")],
+                input=json.dumps(request, ensure_ascii=False) + "\n",
+                capture_output=True,
+                check=False,
+                env=env,
+                text=True,
+                timeout=30,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+
+            response = json.loads(completed.stdout.strip().splitlines()[-1])
+            self.assertTrue(response["ok"], response)
+            result = response["result"]
+            self.assertEqual(
+                result["text"],
+                "[0ms - 320ms] Speaker 0: 大家好。\n[320ms - 760ms] Speaker 1: Hello there.\n[760ms - 1000ms] Speaker 0: 收到。",
+            )
+            self.assertEqual(result["plain_text"], "大家好。 Hello there. 收到。")
+            self.assertEqual(result["language"], "zh")
+            self.assertEqual(result["speaker_count"], 2)
+            self.assertEqual(result["engine"]["asr_model"], "sensevoice-small")
+            self.assertEqual(result["engine"]["asr_model_kind"], "sensevoice")
+            self.assertIsNone(result["engine"]["model_revision"])
+            self.assertIsNone(result["engine"]["punc_model"])
+            self.assertIsNone(result["engine"]["punc_model_path"])
+
+            aspect_events = [
+                json.loads(line)
+                for line in aspect_log.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            init_event = next(event for event in aspect_events if event["event"] == "init")
+            generate_event = next(event for event in aspect_events if event["event"] == "generate")
+            self.assertEqual(init_event["model"], str(model_path))
+            self.assertEqual(init_event["vad_model"], str(vad_model_path))
+            self.assertEqual(init_event["spk_model"], str(speaker_model_path))
+            self.assertEqual(init_event["spk_mode"], "vad_segment")
+            self.assertIsNone(init_event["punc_model"])
+            self.assertIsNone(init_event["model_revision"])
+            self.assertEqual(generate_event["input"], str(normalized_path))
+            self.assertEqual(generate_event["kwargs"], {"language": "auto", "use_itn": True})
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -25,10 +25,12 @@ Model weights are the only runtime assets downloaded after installation. They ar
 
 The workflow model set is:
 
-- `paraformer-zh` (`v2.0.4`)
+- ASR: `paraformer-zh` (`v2.0.4`, default) or `sensevoice-small` (`iic/SenseVoiceSmall`, selectable in settings; downloaded into its own model directory so both can coexist)
 - `fsmn-vad` (`v2.0.4`)
 - `cam++`
-- `ct-punc-c` (`v2.0.4`)
+- `ct-punc-c` (`v2.0.4`; downloaded for every model, but only loaded for Paraformer because SenseVoice emits punctuation itself)
+
+SenseVoice with cam++ speaker labels needs `funasr>=1.3.26`; the requirements pin `funasr>=1.4.15`, and `runtime:ensure` fails the import check (and reinstalls the requirements) when an older funasr is found.
 
 Before publishing a package, run:
 

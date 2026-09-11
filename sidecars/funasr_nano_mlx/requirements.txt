@@ -1,7 +1,7 @@
 huggingface_hub>=0.30.0
 httpx[socks]>=0.28.0
 modelscope>=1.29.0
-funasr>=1.0.0
+funasr>=1.4.15
 torch
 torchaudio
 numpy>=1.23
